@@ -483,10 +483,15 @@ function renderGallery() {
 /* ------------------------------------------------------------------ */
 async function openDetail(id) {
   const cached = S.jobs.find(x => String(x.id) === String(id));
-  if (!cached) return;
-  currentJob = cached;
-  renderDetail();
+  if (cached) { currentJob = cached; renderDetail(); }
   openSheet('#sheet-detail');
+  if (!cached) {                            // เปิดจากแจ้งเตือนโดยที่งานยังไม่อยู่ในรายการที่โหลดไว้
+    currentJob = null;
+    $('#d-code').textContent = ''; $('#d-title-sm').textContent = 'กำลังโหลด...';
+    $('#d-chip').className = 'chip'; $('#d-chip').textContent = '';
+    $('#detail-foot').innerHTML = '';
+    $('#detail-body').innerHTML = '<p class="empty-text" style="text-align:center;padding:24px 0">กำลังโหลด...</p>';
+  }
   try {                                       // ดึงไทม์ไลน์/รูปครบชุดจากเซิร์ฟเวอร์
     const r = await api('/jobs/' + id);
     currentJob = normJob(r.job);
