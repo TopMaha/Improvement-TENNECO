@@ -1,6 +1,5 @@
-# เว็บแอปเป็นไฟล์ static ล้วน — เผยแพร่ด้วย GitHub Pages โดยตรงจาก Actions
-# ขั้นตอน configure-pages (enablement: true) จะเปิด GitHub Pages ให้เองถ้ายังไม่เปิด
-# หลังจากนั้น push เข้า main แล้วเว็บอัปเดตอัตโนมัติ
+# เว็บแอปเป็นไฟล์ static ล้วน — เผยแพร่ด้วยการมิเรอร์ main ไปยังสาขา gh-pages
+# (ตั้ง Source ของ GitHub Pages ให้ชี้ที่สาขา gh-pages ครั้งเดียว หลังจากนั้น push เข้า main แล้วเว็บอัปเดตเอง)
 name: Publish to GitHub Pages
 
 on:
@@ -9,34 +8,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Configure Pages (เปิด Pages อัตโนมัติถ้ายังไม่เปิด)
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload site artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Mirror main -> gh-pages
+        run: git push origin HEAD:gh-pages --force
