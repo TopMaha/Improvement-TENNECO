@@ -1,0 +1,23 @@
+name = "improvement-api"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+account_id = "83edbaa0b88597054144fcceb27b7e8d"
+
+# ---- ฐานข้อมูลหลักของระบบ Improvement ----
+[[d1_databases]]
+binding = "DB"
+database_name = "improvement-db"
+database_id = "f15da400-7496-4ce5-8dc7-86aa28bfc1d3"
+
+# ---- ฐานข้อมูล PSIF (อ่านอย่างเดียว) — ใช้เป็นต้นทางรายชื่อพนักงาน ----
+# ปุ่ม "ดึงรายชื่อจาก PSIF" ในหน้าตั้งค่าจะคัดลอก id / ชื่อ / แผนก / สถานะ มาไว้ที่ improvement-db
+# โดยไม่แตะสิทธิ์ (role) ของระบบ Improvement ที่ตั้งไว้แล้ว
+[[d1_databases]]
+binding = "PSIF_DB"
+database_name = "psif-db"
+database_id = "229e5d1b-4f23-4ee9-985c-9600bed06d4d"
+
+# ---- รูป Before / After ----
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "improvement-photos"

@@ -1,0 +1,24 @@
+# เว็บแอปเป็นไฟล์ static ล้วน — เผยแพร่ด้วยการมิเรอร์ main ไปยังสาขา gh-pages
+# (ตั้ง Source ของ GitHub Pages ให้ชี้ที่สาขา gh-pages ครั้งเดียว หลังจากนั้น push เข้า main แล้วเว็บอัปเดตเอง)
+name: Publish to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Mirror main -> gh-pages
+        run: git push origin HEAD:gh-pages --force

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0E36A0">
+<title>TENNECO Improvement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<!-- ============ LOCK : เข้าระบบด้วยรหัสพนักงาน ============ -->
+<div class="lock" id="lock">
+  <div class="lock-card">
+    <div class="lock-brand">
+      <img class="logo-img" id="lock-logo" src="assets/logo.png" alt="TENNECO" hidden>
+      <span class="wordmark" id="lock-wordmark">TENNECO</span>
+    </div>
+    <div class="lock-tag">IMPROVEMENT</div>
+    <h1 class="lock-title">เข้าสู่ระบบ</h1>
+    <p class="lock-sub">แจ้งงานปรับปรุง · ติดตามสถานะ · ดูรายงาน<br>กรอกรหัสพนักงานเพื่อเข้าใช้งาน</p>
+    <form id="form-login" novalidate>
+      <input id="lock-input" class="input lock-input mono" placeholder="รหัสพนักงาน" autocomplete="username"
+             autocapitalize="characters" spellcheck="false" aria-label="รหัสพนักงาน">
+      <p class="lock-err" id="lock-err" role="alert" hidden></p>
+      <button type="submit" class="btn-submit" id="btn-login">
+        <span id="btn-login-txt">เข้าสู่ระบบ</span>
+        <svg viewBox="0 0 24 24"><path d="M5 12h13m-5-6 6 6-6 6"/></svg>
+      </button>
+    </form>
+    <p class="lock-foot">รหัสพนักงานอ้างอิงจากฐานข้อมูล PSIF<br>เข้าไม่ได้ / ไม่พบรหัส — ติดต่อผู้ดูแลระบบ</p>
+    <p class="lock-foot mono" id="lock-ver">v1.0</p>
+  </div>
+</div>
+
+<div class="device">
+<div class="app" id="app" hidden>
+
+  <!-- ============ APP BAR ============ -->
+  <header class="appbar">
+    <div class="brand">
+      <!-- วางไฟล์โลโก้จริงที่ assets/logo.png แล้วระบบจะสลับมาใช้อัตโนมัติ -->
+      <img class="logo-img" id="logo-img" src="assets/logo.png" alt="TENNECO" hidden>
+      <span class="wordmark" id="logo-text">TENNECO</span>
+      <span class="brand-div"></span>
+      <span class="brand-label">IMPROVE<br>MENT</span>
+    </div>
+    <div class="appbar-actions">
+      <button class="icon-btn" id="btn-bell" aria-label="แจ้งเตือน">
+        <svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6v3.6L4.4 16h15.2L18 12.6V9a6 6 0 0 0-6-6Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
+        <span class="badge" id="bell-badge" hidden>0</span>
+      </button>
+      <button class="icon-btn" id="btn-settings" aria-label="ตั้งค่า">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="viewport" id="viewport">
+
+    <!-- ============ SCREEN : รายการงาน ============ -->
+    <section class="screen" id="screen-list" data-screen="list">
+      <div class="screen-head">
+        <div>
+          <h1 class="screen-title">รายการงาน</h1>
+          <p class="screen-sub" id="list-count">—</p>
+        </div>
+        <button class="btn-filter" id="btn-filter">
+          <svg viewBox="0 0 24 24"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+          ตัวกรอง
+          <span class="filter-dot" id="filter-dot" hidden></span>
+        </button>
+      </div>
+
+      <div class="quickfilter" id="quickfilter">
+        <button class="qf active" data-status="all">ทั้งหมด</button>
+        <button class="qf" data-status="mine">งานของฉัน</button>
+        <button class="qf" data-status="submitted">รอตรวจสอบ</button>
+        <button class="qf" data-status="in_progress">กำลังดำเนินการ</button>
+        <button class="qf" data-status="done">จบงาน</button>
+        <button class="qf" data-status="rejected">ไม่อนุมัติ</button>
+      </div>
+
+      <div class="gallery" id="gallery"></div>
+      <div class="empty" id="list-empty" hidden>
+        <div class="empty-ico">
+          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="m4 18 5-4 4 3 3-2 4 3"/></svg>
+        </div>
+        <p class="empty-title">ไม่พบรายการงาน</p>
+        <p class="empty-text">ลองปรับตัวกรอง หรือกดปุ่มกลางเพื่อบันทึกงานใหม่</p>
+      </div>
+      <div class="pad-bottom"></div>
+    </section>
+
+    <!-- ============ SCREEN : บันทึกงาน ============ -->
+    <section class="screen" id="screen-new" data-screen="new">
+      <div class="hero">
+        <div class="hero-stripe"></div>
+        <h1 class="hero-title">บันทึกงาน Improvement</h1>
+        <p class="hero-sub">ถ่ายรูปหน้างาน · ระบุเครื่องจักร · แจ้งสิ่งที่ต้องแก้ไข</p>
+      </div>
+
+      <form class="form" id="form-new" novalidate>
+
+        <div class="field" data-field="photos">
+          <label class="lbl">รูป Before <span class="req">จำเป็น</span></label>
+          <p class="hint">ถ่ายจากกล้องมือถือ หรือเลือกจากเครื่อง (สูงสุด 4 รูป)</p>
+          <div class="shots" id="shots"></div>
+          <div class="shot-actions">
+            <label class="shot-btn primary">
+              <svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.4"/></svg>
+              ถ่ายรูป
+              <input type="file" accept="image/*" capture="environment" id="in-camera" hidden multiple>
+            </label>
+            <label class="shot-btn">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 18 5-4 4 3 3-2 4 3"/></svg>
+              แกลเลอรี
+              <input type="file" accept="image/*" id="in-gallery" hidden multiple>
+            </label>
+          </div>
+          <p class="err" id="err-photos" role="alert">กรุณาถ่ายรูป Before อย่างน้อย 1 รูป</p>
+        </div>
+
+        <div class="field" data-field="area">
+          <label class="lbl" for="in-area">พื้นที่ / ไลน์ผลิต <span class="req">จำเป็น</span></label>
+          <div class="select-wrap">
+            <select id="in-area" class="input" required aria-describedby="err-area"></select>
+            <svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+          <p class="err" id="err-area" role="alert">กรุณาเลือกพื้นที่</p>
+        </div>
+
+        <div class="field" data-field="machine">
+          <label class="lbl" for="in-machine">เครื่องจักร <span class="req">จำเป็น</span></label>
+          <input id="in-machine" class="input" required aria-describedby="err-machine" list="machine-list"
+                 placeholder="พิมพ์ชื่อ / รหัสเครื่องจักร" autocomplete="off">
+          <datalist id="machine-list"></datalist>
+          <p class="err" id="err-machine" role="alert">กรุณาระบุเครื่องจักร</p>
+        </div>
+
+        <div class="field" data-field="title">
+          <label class="lbl" for="in-title">หัวข้อที่ต้องการแก้ไข <span class="req">จำเป็น</span></label>
+          <input id="in-title" class="input" required aria-describedby="err-title" placeholder="เช่น น้ำมันรั่วบริเวณฐานเครื่อง" maxlength="90">
+          <p class="err" id="err-title" role="alert">กรุณากรอกหัวข้อ</p>
+        </div>
+
+        <div class="field" data-field="detail">
+          <label class="lbl" for="in-detail">รายละเอียด — แก้ไขอะไร อย่างไร <span class="req">จำเป็น</span></label>
+          <textarea id="in-detail" class="input ta" required aria-describedby="err-detail" rows="4" placeholder="อธิบายอาการ / สิ่งที่ต้องการให้ปรับปรุง / ผลกระทบต่อการผลิต" maxlength="500"></textarea>
+          <div class="counter"><span id="detail-count">0</span>/500</div>
+          <p class="err" id="err-detail" role="alert">กรุณากรอกรายละเอียด</p>
+        </div>
+
+        <div class="reporter-row">
+          <div class="avatar" id="rep-avatar">–</div>
+          <div>
+            <div class="rep-name" id="rep-name">—</div>
+            <div class="rep-meta" id="rep-meta">ผู้แจ้ง</div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-submit" id="btn-submit">
+          <span id="btn-submit-txt">บันทึกและส่งข้อมูล</span>
+          <svg viewBox="0 0 24 24"><path d="M5 12h13m-5-6 6 6-6 6"/></svg>
+        </button>
+      </form>
+      <div class="pad-bottom"></div>
+    </section>
+
+    <!-- ============ SCREEN : รายงาน ============ -->
+    <section class="screen" id="screen-report" data-screen="report">
+      <div class="screen-head">
+        <div>
+          <h1 class="screen-title">รายงานสรุป</h1>
+          <p class="screen-sub" id="report-range">—</p>
+        </div>
+      </div>
+
+      <div class="seg wide" id="seg-period">
+        <button type="button" class="seg-item" data-v="30">30 วัน</button>
+        <button type="button" class="seg-item" data-v="90">90 วัน</button>
+        <button type="button" class="seg-item active" data-v="all">ทั้งหมด</button>
+      </div>
+
+      <div class="kpi-grid" id="kpi-grid"></div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 class="card-title">ความคืบหน้ารวม</h2>
+          <span class="card-note" id="overall-note">—</span>
+        </div>
+        <div class="stack" id="overall-stack"></div>
+        <div class="legend" id="overall-legend"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 class="card-title">สรุปตามพื้นที่</h2>
+          <span class="card-note">ปิดงาน / ทั้งหมด</span>
+        </div>
+        <div class="area-list" id="area-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 class="card-title">แนวโน้มรายเดือน</h2>
+          <span class="card-note">แจ้ง / ปิด</span>
+        </div>
+        <div class="bars" id="trend-bars" role="img" aria-label="กราฟแนวโน้มรายเดือน"></div>
+        <div class="bars-legend"><span class="lg"><i style="background:var(--blue-600)"></i>แจ้งเข้า</span><span class="lg"><i style="background:var(--green)"></i>ปิดได้</span></div>
+      </div>
+
+      <button class="btn-export" id="btn-export">
+        <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        <span class="ex-main">Export รายงาน Excel</span>
+        <span class="ex-sub">จัดรูปแบบสวยงาม · แนบรูป Before / After</span>
+      </button>
+      <div class="pad-bottom"></div>
+    </section>
+
+  </main>
+
+  <!-- ============ TAB BAR ============ -->
+  <nav class="tabbar">
+    <button class="tab" data-go="list">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg>
+      <span>รายการงาน</span>
+      <i class="tab-badge" id="tab-badge" hidden></i>
+    </button>
+
+    <button class="tab-fab" data-go="new" aria-label="บันทึกงาน">
+      <svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.4"/></svg>
+      <span>บันทึกงาน</span>
+    </button>
+
+    <button class="tab" data-go="report">
+      <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4m6 16v-7m6 7V8"/></svg>
+      <span>รายงาน</span>
+    </button>
+  </nav>
+
+</div><!-- /app -->
+</div><!-- /device -->
+
+<!-- ============ SHEET : DETAIL ============ -->
+<div class="scrim" id="scrim"></div>
+
+<section class="sheet full" id="sheet-detail" role="dialog" aria-modal="true" aria-labelledby="d-title-sm" aria-hidden="true">
+  <header class="sheet-bar">
+    <button class="icon-btn dark" data-close aria-label="ย้อนกลับ"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>
+    <div class="sheet-bar-title">
+      <span class="mono" id="d-code">—</span>
+      <span id="d-title-sm">—</span>
+    </div>
+    <span class="chip" id="d-chip">—</span>
+  </header>
+  <div class="sheet-body" id="detail-body"></div>
+  <footer class="sheet-foot" id="detail-foot"></footer>
+</section>
+
+<!-- ============ SHEET : FILTER ============ -->
+<section class="sheet" id="sheet-filter" role="dialog" aria-modal="true" aria-labelledby="h-filter" aria-hidden="true">
+  <div class="grip"></div>
+  <header class="sheet-head"><h2 id="h-filter">ตัวกรอง</h2><button class="link" id="f-reset">ล้างทั้งหมด</button></header>
+  <div class="sheet-body">
+    <div class="field">
+      <label class="lbl" for="f-q">ค้นหา</label>
+      <input id="f-q" class="input" placeholder="รหัสงาน / หัวข้อ / เครื่องจักร / ผู้แจ้ง">
+    </div>
+    <div class="field">
+      <label class="lbl">สถานะ</label>
+      <div class="chips-pick" id="f-status"></div>
+    </div>
+    <div class="field">
+      <label class="lbl" for="f-area">พื้นที่</label>
+      <div class="select-wrap"><select id="f-area" class="input"></select><svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+    </div>
+    <div class="field">
+      <label class="lbl" for="f-machine">เครื่องจักร</label>
+      <div class="select-wrap"><select id="f-machine" class="input"></select><svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+    </div>
+    <div class="two">
+      <div class="field"><label class="lbl" for="f-from">ตั้งแต่วันที่</label><input type="date" id="f-from" class="input"></div>
+      <div class="field"><label class="lbl" for="f-to">ถึงวันที่</label><input type="date" id="f-to" class="input"></div>
+    </div>
+    <div class="field">
+      <label class="lbl">เรียงลำดับ</label>
+      <div class="seg wide" id="f-sort">
+        <button type="button" class="seg-item active" data-v="new">ใหม่สุด</button>
+        <button type="button" class="seg-item" data-v="old">เก่าสุด</button>
+      </div>
+    </div>
+  </div>
+  <footer class="sheet-foot">
+    <button class="btn ghost" data-close>ยกเลิก</button>
+    <button class="btn solid" id="f-apply">ใช้ตัวกรอง</button>
+  </footer>
+</section>
+
+<!-- ============ SHEET : SETTINGS ============ -->
+<section class="sheet" id="sheet-settings" role="dialog" aria-modal="true" aria-labelledby="h-settings" aria-hidden="true">
+  <div class="grip"></div>
+  <header class="sheet-head"><h2 id="h-settings">ตั้งค่า</h2></header>
+  <div class="sheet-body">
+
+    <div class="me-card">
+      <div class="avatar lg" id="me-avatar">–</div>
+      <div class="me-info">
+        <div class="me-name" id="me-name">—</div>
+        <div class="me-sub"><span class="mono" id="me-id">—</span><i class="dot"></i><span id="me-dept">—</span></div>
+        <span class="role-badge" id="me-role">—</span>
+      </div>
+    </div>
+
+    <!-- เมนูสำหรับ Super Admin เท่านั้น -->
+    <div id="admin-tools" hidden>
+      <div class="sec-title">ข้อมูลหลักของระบบ</div>
+      <button class="rowbtn" id="s-employees">
+        <span class="rowbtn-ico"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5c.6-3.2 2.9-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17.5" cy="9.5" r="2.6"/><path d="M16 14.7c2.2-.4 4.2 1.1 4.7 4.1"/></svg></span>
+        <span class="rowbtn-body"><b>ข้อมูลพนักงาน &amp; สิทธิ์การใช้งาน</b><small id="s-emp-note">กำหนดว่าใครแจ้งงาน / อนุมัติ / ปิดงานได้</small></span>
+        <svg class="rowbtn-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+      </button>
+      <button class="rowbtn" id="s-areas">
+        <span class="rowbtn-ico"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12"/><path d="M9 20v-6h6v6"/></svg></span>
+        <span class="rowbtn-body"><b>พื้นที่ / ไลน์ผลิต</b><small id="s-area-note">รายการที่ให้เลือกตอนแจ้งงาน</small></span>
+        <svg class="rowbtn-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+      </button>
+      <button class="rowbtn" id="s-sync">
+        <span class="rowbtn-ico"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14-4.5L4 9"/><path d="M4 5v4h4"/><path d="M4 13a8 8 0 0 0 14 4.5L20 15"/><path d="M20 19v-4h-4"/></svg></span>
+        <span class="rowbtn-body"><b>ดึงรายชื่อพนักงานจาก PSIF</b><small id="s-sync-note">อัปเดตชื่อ / แผนก / สถานะ — ไม่ทับสิทธิ์ที่ตั้งไว้</small></span>
+        <svg class="rowbtn-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+      </button>
+    </div>
+
+    <div class="sec-title">การเชื่อมต่อ</div>
+    <div class="field">
+      <label class="lbl" for="s-api">ที่อยู่เซิร์ฟเวอร์ (API)</label>
+      <input id="s-api" class="input mono" spellcheck="false" placeholder="https://improvement-api....workers.dev">
+      <p class="hint" id="s-api-state">—</p>
+      <button class="btn ghost" id="s-api-save" style="width:100%">บันทึกที่อยู่เซิร์ฟเวอร์</button>
+    </div>
+
+    <div class="field">
+      <button class="btn danger-ghost" id="s-logout" style="width:100%">ออกจากระบบ</button>
+      <p class="hint">ข้อมูลทั้งหมดเก็บบนฐานข้อมูลกลาง (Cloudflare D1 + R2) — ทุกคนเห็นข้อมูลชุดเดียวกันตามสิทธิ์ของตัวเอง</p>
+    </div>
+  </div>
+  <footer class="sheet-foot"><button class="btn solid" data-close>เสร็จสิ้น</button></footer>
+</section>
+
+<!-- ============ SHEET : พนักงาน & สิทธิ์ ============ -->
+<section class="sheet full" id="sheet-employees" role="dialog" aria-modal="true" aria-labelledby="h-emp" aria-hidden="true">
+  <header class="sheet-bar">
+    <button class="icon-btn dark" data-close aria-label="ย้อนกลับ"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>
+    <div class="sheet-bar-title"><span id="h-emp">ข้อมูลพนักงาน &amp; สิทธิ์</span><span id="emp-count">—</span></div>
+  </header>
+  <div class="emp-tools">
+    <input id="emp-q" class="input" placeholder="ค้นหา รหัส / ชื่อ / แผนก" autocomplete="off">
+    <div class="select-wrap sm"><select id="emp-role-filter" class="input"></select><svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+  </div>
+  <div class="sheet-body" id="emp-body"></div>
+</section>
+
+<!-- ============ SHEET : พื้นที่ ============ -->
+<section class="sheet" id="sheet-areas" role="dialog" aria-modal="true" aria-labelledby="h-areas" aria-hidden="true">
+  <div class="grip"></div>
+  <header class="sheet-head"><h2 id="h-areas">พื้นที่ / ไลน์ผลิต</h2></header>
+  <div class="sheet-body">
+    <div class="area-admin" id="area-admin"></div>
+    <div class="field">
+      <label class="lbl" for="area-new">เพิ่มพื้นที่ใหม่</label>
+      <div class="two">
+        <input id="area-new" class="input" placeholder="เช่น VSM5 / WAREHOUSE" autocomplete="off">
+        <button class="btn solid" id="area-add">เพิ่ม</button>
+      </div>
+      <p class="hint">พื้นที่ที่มีงานอ้างอยู่แล้วจะถูก “ปิดใช้งาน” แทนการลบ เพื่อไม่ให้ประวัติงานเสียหาย</p>
+    </div>
+  </div>
+  <footer class="sheet-foot"><button class="btn solid" data-close>เสร็จสิ้น</button></footer>
+</section>
+
+<!-- ============ SHEET : แจ้งเตือน ============ -->
+<section class="sheet" id="sheet-notif" role="dialog" aria-modal="true" aria-labelledby="h-notif" aria-hidden="true">
+  <div class="grip"></div>
+  <header class="sheet-head"><h2 id="h-notif">แจ้งเตือน</h2><button class="link" id="n-read">อ่านทั้งหมดแล้ว</button></header>
+  <div class="sheet-body" id="notif-body"></div>
+  <footer class="sheet-foot"><button class="btn solid" data-close>ปิด</button></footer>
+</section>
+
+<!-- ============ SUCCESS ============ -->
+<div class="success" id="success" role="dialog" aria-modal="true" aria-labelledby="success-h" aria-hidden="true">
+  <div class="success-card">
+    <div class="tick"><svg viewBox="0 0 24 24"><path d="m4 12.5 5.2 5.2L20 7"/></svg></div>
+    <h2 id="success-h">ส่งข้อมูลสำเร็จ</h2>
+    <p>บันทึกเข้าฐานข้อมูลกลางแล้ว และแจ้งเตือนผู้ดูแลเรียบร้อย<br>ติดตามสถานะได้ที่หน้ารายการงาน</p>
+    <div class="success-code mono" id="success-code">—</div>
+    <div class="two">
+      <button class="btn ghost" id="sc-again">บันทึกงานใหม่</button>
+      <button class="btn solid" id="sc-view">ดูงานของฉัน</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ VIEWER / TOAST / NOTIFY ============ -->
+<div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-label="ดูรูปขนาดเต็ม" aria-hidden="true"><img id="viewer-img" alt=""><button class="viewer-x" id="viewer-x" aria-label="ปิดรูป">✕</button></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="notify" id="notify" role="status" aria-live="polite">
+  <div class="notify-ico"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6v3.6L4.4 16h15.2L18 12.6V9a6 6 0 0 0-6-6Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg></div>
+  <div class="notify-body"><b id="notify-title">แจ้งเตือน</b><span id="notify-text">—</span></div>
+</div>
+
+<canvas id="scratch" hidden></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="assets/app.js"></script>
+<script src="assets/export.js"></script>
+</body>
+</html>
