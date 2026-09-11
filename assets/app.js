@@ -459,7 +459,7 @@ function renderGallery() {
   $('#list-count').textContent = list.length + ' รายการ' + roleTag;
   $('#list-empty').hidden = list.length > 0;
   $('#gallery').innerHTML = list.map((j, i) => `
-    <button class="tile" data-open="${j.id}" style="animation-delay:${Math.min(i, 8) * 45}ms"
+    <button class="tile" data-open="${j.id}" style="animation-delay:${Math.min(i, 8) * 45}ms;--st:${ST[j.status].color}"
       aria-label="${esc(j.code)} ${esc(j.title)} · ผู้แจ้ง ${esc(j.reporter)} · สถานะ ${ST[j.status].label}">
       <div class="tile-img">
         <img src="${j.after.length ? j.after[0] : (j.before[0] || '')}" alt="" loading="lazy">
