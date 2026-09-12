@@ -52,6 +52,7 @@ let filters = { q: '', status: ['all'], mine: false, area: '', machine: '', from
 let draft = { photos: [] };
 let currentJob = null;
 let reportPeriod = 'all';
+let loadError = '';                   // ข้อความเมื่อดึงข้อมูลจากเซิร์ฟเวอร์ไม่สำเร็จ
 let notifTimer = null;
 
 const $  = (s, r) => (r || document).querySelector(s);
@@ -128,8 +129,12 @@ function daysBetween(a, b) { return Math.max(0, (new Date(b) - new Date(a)) / 86
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function initials(n) { return (n || '?').replace(/^(นาย|นาง|น\.ส\.|นางสาว)\s*/, '').trim().charAt(0) || '?'; }
 
+const TOAST_ICO = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8.2v4.4m0 2.9v.2"/></svg>';
 function toast(msg) {
-  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  const t = $('#toast');
+  t.innerHTML = TOAST_ICO + '<span></span>';
+  t.querySelector('span').textContent = msg;      // ข้อความจากเซิร์ฟเวอร์ — ใส่แบบ text ไม่ใช่ HTML
+  t.classList.add('on');
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 2800);
 }
 function notify(text, title) {
@@ -220,8 +225,9 @@ async function enterApp() {
   $('#app').hidden = false;
   applyRole();
   go('new');
+  showLoading();
   try { await refreshAll(); }
-  catch (e) { toast(e.message); }
+  catch (e) { clearLoading(e.message); toast(e.message); }
   loadNotifs().catch(() => {});
   clearInterval(notifTimer);
   notifTimer = setInterval(() => loadNotifs().catch(() => {}), 60000);
@@ -249,11 +255,52 @@ async function loadJobs() {
   const r = await api('/jobs');
   S.jobs = (r.jobs || []).map(normJob);
   S.pending = r.pending || 0;
+  loadError = '';                     // ดึงสำเร็จแล้ว — ข้อความแจ้งเตือนเดิมไม่ต้องค้างไว้
 }
 async function refreshAll() {
   await loadBootstrap();
   await loadJobs();
   renderGallery(); renderReport(); updateBadges();
+}
+
+/* ------------------------------------------------------------------ */
+/* SKELETON — โครงร่างระหว่างรอข้อมูลชุดแรก                              */
+/* ------------------------------------------------------------------ */
+/* จอว่าง ๆ ทำให้ดูเหมือนแอปค้าง — วางโครงหน้าที่กำลังจะมาแทนไว้ก่อน */
+function skeletonGallery(n) {
+  return Array.from({ length: n }, () =>
+    '<div class="sk-tile"><div class="sk sk-img"></div>' +
+    '<div class="sk-body"><div class="sk sk-line"></div><div class="sk sk-line w60"></div>' +
+    '<div class="sk sk-line w40"></div></div></div>').join('');
+}
+function showLoading() {
+  $('#gallery').innerHTML = skeletonGallery(6);
+  $('#list-empty').hidden = true;
+  $('#list-count').textContent = 'กำลังโหลด...';
+  $('#kpi-grid').innerHTML =
+    '<div class="sk sk-kpi hero"></div>' + '<div class="sk sk-kpi"></div>'.repeat(4);
+  $('#overall-stack').innerHTML = '';
+  $('#overall-legend').innerHTML = '';
+  $('#area-list').innerHTML = '<div class="sk sk-row"></div>'.repeat(5);
+  $('#trend-bars').innerHTML = '<div class="sk sk-block" style="flex:1"></div>';
+}
+/* โหลดไม่สำเร็จ — เก็บโครงร่างออก แล้วบอกสาเหตุแทน ไม่ปล่อยให้ shimmer ค้างทั้งหน้า */
+function clearLoading(msg) {
+  loadError = msg || 'ตรวจการเชื่อมต่อ แล้วลองเปิดแอปใหม่อีกครั้ง';
+  $('#gallery').innerHTML = '';
+  $('#list-count').textContent = 'โหลดข้อมูลไม่สำเร็จ';
+  $('#list-empty').hidden = false;
+  renderEmptyState(false);
+  $('#kpi-grid').innerHTML = '';
+  $('#area-list').innerHTML = '';
+  $('#trend-bars').innerHTML = '';
+}
+function skeletonDetail() {
+  return '<div class="sk sk-row" style="width:45%"></div>' +
+         '<div class="sk sk-block" style="height:132px"></div>' +
+         '<div class="sk sk-block" style="height:88px"></div>' +
+         '<div class="sk sk-row" style="width:62%"></div>' +
+         '<div class="sk sk-block" style="height:112px"></div>';
 }
 
 /* ------------------------------------------------------------------ */
@@ -263,6 +310,7 @@ function go(name) {
   $$('.screen').forEach(s => s.classList.toggle('active', s.dataset.screen === name));
   $$('.tab, .tab-fab').forEach(t => t.classList.toggle('active', t.dataset.go === name));
   const sc = $('#screen-' + name); if (sc) sc.scrollTop = 0;
+  $('.appbar').classList.remove('scrolled');
   if (name === 'list') renderGallery();
   if (name === 'report') renderReport();
 }
@@ -298,10 +346,12 @@ function closeSheets(fromPop) {
 /* NEW JOB                                                             */
 /* ------------------------------------------------------------------ */
 function renderShots() {
-  $('#shots').innerHTML = draft.photos.map((p, i) =>
+  const shots = draft.photos.map((p, i) =>
     `<div class="shot" style="animation-delay:${i * 40}ms"><img src="${p}" alt="รูป Before ที่ ${i + 1}">
-       <button type="button" class="x" data-rm="${i}" aria-label="ลบรูปที่ ${i + 1}">✕</button></div>`
-  ).join('');
+       <button type="button" class="x" data-rm="${i}" aria-label="ลบรูปที่ ${i + 1}">✕</button></div>`);
+  // ช่องว่างที่เหลือ — บอกโควตา 4 รูปตั้งแต่ยังไม่ได้ถ่าย
+  for (let i = draft.photos.length; i < 4; i++) shots.push(`<div class="slot" aria-hidden="true">${i + 1}</div>`);
+  $('#shots').innerHTML = shots.join('');
 }
 
 /* ---------- เก็บร่างที่กรอกค้างไว้ กันข้อมูลหายถ้าปิดแอป ---------- */
@@ -458,24 +508,73 @@ function renderGallery() {
   const roleTag = ME && ME.role !== 'user' ? ' · ' + ROLE_LABEL[ME.role] : '';
   $('#list-count').textContent = list.length + ' รายการ' + roleTag;
   $('#list-empty').hidden = list.length > 0;
-  $('#gallery').innerHTML = list.map((j, i) => `
+  $('#gallery').innerHTML = list.map((j, i) => {
+    const pic = j.after.length ? j.after[0] : (j.before[0] || '');
+    return `
     <button class="tile" data-open="${j.id}" style="animation-delay:${Math.min(i, 8) * 45}ms;--st:${ST[j.status].color}"
-      aria-label="${esc(j.code)} ${esc(j.title)} · ผู้แจ้ง ${esc(j.reporter)} · สถานะ ${ST[j.status].label}">
-      <div class="tile-img">
-        <img src="${j.after.length ? j.after[0] : (j.before[0] || '')}" alt="" loading="lazy">
+      aria-label="${esc(j.code)} ${esc(j.title)} · ${esc(j.area)} ${esc(j.machine)} · ผู้แจ้ง ${esc(j.reporter)} · สถานะ ${ST[j.status].label}">
+      <div class="tile-img${pic ? '' : ' nopic'}">
+        <img src="${pic}" alt="" loading="lazy">
         <span class="chip ${j.status} tile-chip"><i></i>${ST[j.status].label}</span>
         <span class="tile-code">${j.code}</span>
       </div>
       <div class="tile-body">
         <div class="tile-title">${esc(j.title)}</div>
+        <div class="tile-tags">
+          <span class="tile-tag">${esc(j.area)}</span>
+          ${j.machine ? `<span class="tile-tag mc">${esc(j.machine)}</span>` : ''}
+        </div>
         <div class="tile-meta">
           <span class="tile-who">${esc(j.reporter)}</span><i class="dot"></i>
           <span>${fmtDate(j.createdAt)}</span>
         </div>
       </div>
-    </button>`).join('');
+    </button>`;
+  }).join('');
+  renderQuickCounts();
   const n = (filters.q || filters.mine || filters.area || filters.machine || filters.from || filters.to || !filters.status.includes('all'));
   $('#filter-dot').hidden = !n;
+  if (!list.length) renderEmptyState(n);
+}
+
+/* ข้อความตอนไม่มีงาน — บอกสาเหตุตามตัวกรองที่เปิดอยู่ ผู้ใช้จะได้รู้ว่าต้องทำอะไรต่อ */
+function renderEmptyState(filtered) {
+  if (loadError) {                       // โหลดไม่สำเร็จ — บอกสาเหตุจริง ไม่ใช่ "ยังไม่มีงาน" ซึ่งชวนเข้าใจผิด
+    $('#list-empty .empty-title').textContent = 'โหลดข้อมูลไม่สำเร็จ';
+    $('#list-empty .empty-text').textContent = loadError;
+    $('#empty-reset').hidden = true;
+    return;
+  }
+  const st = filters.status.find(x => x !== 'all');
+  let title = 'ยังไม่มีรายการงาน', text = 'กดปุ่มกลางเพื่อถ่ายรูปและบันทึกงานปรับปรุงรายการแรก';
+  if (filters.mine)      { title = 'คุณยังไม่ได้แจ้งงาน';        text = 'งานที่คุณแจ้งเองจะมาแสดงที่นี่ พร้อมสถานะล่าสุดของแต่ละงาน'; }
+  else if (filters.q)    { title = 'ไม่พบงานที่ค้นหา';           text = 'ลองใช้คำสั้นลง หรือค้นด้วยรหัสงาน / ชื่อเครื่องจักรแทน'; }
+  else if (st && ST[st]) { title = 'ไม่มีงานสถานะ "' + ST[st].label + '"'; text = 'ตอนนี้ไม่มีงานที่ค้างอยู่ในสถานะนี้'; }
+  else if (filtered)     { title = 'ไม่พบงานตามตัวกรอง';         text = 'ลองขยายช่วงวันที่ หรือล้างตัวกรองบางอย่างออก'; }
+  $('#list-empty .empty-title').textContent = title;
+  $('#list-empty .empty-text').textContent = text;
+  $('#empty-reset').hidden = !filtered;
+}
+
+/* นับจำนวนงานของแต่ละสถานะจากงานทั้งหมดที่ผู้ใช้เห็นได้ — ไม่ผูกกับตัวกรองอื่น
+   เพราะจุดประสงค์คือ "ดูภาระงานรวม" ก่อนตัดสินใจว่าจะกดดูอันไหน */
+function renderQuickCounts() {
+  const by = { all: S.jobs.length, mine: 0, submitted: 0, in_progress: 0, done: 0, rejected: 0 };
+  S.jobs.forEach(j => {
+    if (by[j.status] !== undefined) by[j.status]++;
+    if (isOwner(j)) by.mine++;
+  });
+  $$('#quickfilter .qf').forEach(b => {
+    const k = b.dataset.status;
+    if (by[k] === undefined) return;
+    if (!b.dataset.label) b.dataset.label = b.textContent.trim();
+    b.innerHTML = '';
+    b.append(b.dataset.label);
+    const n = document.createElement('span');
+    n.className = 'n' + (by[k] ? '' : ' zero');
+    n.textContent = by[k];
+    b.append(n);
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -490,7 +589,7 @@ async function openDetail(id) {
     $('#d-code').textContent = ''; $('#d-title-sm').textContent = 'กำลังโหลด...';
     $('#d-chip').className = 'chip'; $('#d-chip').textContent = '';
     $('#detail-foot').innerHTML = '';
-    $('#detail-body').innerHTML = '<p class="empty-text" style="text-align:center;padding:24px 0">กำลังโหลด...</p>';
+    $('#detail-body').innerHTML = skeletonDetail();
   }
   try {                                       // ดึงไทม์ไลน์/รูปครบชุดจากเซิร์ฟเวอร์
     const r = await api('/jobs/' + id);
@@ -511,6 +610,7 @@ function renderDetail(mode) {
   const chip = $('#d-chip');
   chip.className = 'chip lg ' + j.status;
   chip.innerHTML = '<i></i>' + ST[j.status].label;
+  $('#sheet-detail .sheet-bar').style.setProperty('--st', ST[j.status].color);
 
   const lead = j.closedAt ? daysBetween(j.createdAt, j.closedAt).toFixed(1) : daysBetween(j.createdAt, new Date()).toFixed(1);
   const canReply = j.status !== 'done' && j.status !== 'rejected' && (isOwner(j) || canManage(j));
@@ -534,11 +634,11 @@ function renderDetail(mode) {
       }</div>` : ''}
     </div>` : `
     <div>
-      <div class="sec-title"><span class="tagline">BEFORE</span> รูปก่อนแก้ไข</div>
+      <div class="sec-title"><span class="tagline">BEFORE</span> รูปก่อนแก้ไข <span class="count">${j.before.length} รูป</span></div>
       <div class="photo-strip">${j.before.map((p, i) => `<img src="${p}" data-zoom="${p}" alt="รูป Before ที่ ${i + 1} ของงาน ${j.code}">`).join('')}</div>
     </div>
     ${j.after.length ? `<div>
-      <div class="sec-title"><span class="tagline after">AFTER</span> รูปหลังแก้ไข</div>
+      <div class="sec-title"><span class="tagline after">AFTER</span> รูปหลังแก้ไข <span class="count">${j.after.length} รูป</span></div>
       <div class="photo-strip">${j.after.map((p, i) => `<img src="${p}" data-zoom="${p}" alt="รูป After ที่ ${i + 1} ของงาน ${j.code}">`).join('')}</div>
     </div>` : ''}`}
 
@@ -712,6 +812,34 @@ function periodJobs() {
   return S.jobs.filter(j => new Date(j.createdAt).getTime() >= lim);
 }
 
+/* ไอคอนเส้น 1.7px ชุดเดียวกับที่อื่นทั้งแอป — ไม่ใช้อิโมจิ */
+const KPI_ICO = {
+  rate:        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13a8 8 0 1 1 16 0"/><path d="m12 13 4.2-3.4"/></svg>',
+  submitted:   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.6V12l2.8 1.7"/></svg>',
+  in_progress: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.4"/><path d="M4 20v-4.6h4.6"/><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.6"/><path d="M20 4v4.6h-4.6"/></svg>',
+  done:        '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.4 12.2 2.6 2.6 4.6-5"/></svg>',
+  rejected:    '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m9.2 9.2 5.6 5.6m0-5.6-5.6 5.6"/></svg>'
+};
+
+/* ตัวเลข KPI ไล่ขึ้นจาก 0 ตอนเปิดหน้ารายงาน — สื่อว่าค่าเพิ่งคำนวณใหม่
+   ทำเฉพาะตอนหน้ารายงานเปิดอยู่จริง และเคารพการตั้งค่า "ลดการเคลื่อนไหว" */
+function countUpKpis() {
+  const nums = $$('#kpi-grid .num');
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (still || !$('#screen-report').classList.contains('active')) {
+    nums.forEach(el => { el.textContent = el.dataset.to; });
+    return;
+  }
+  const t0 = performance.now(), dur = 620;
+  nums.forEach(el => el.textContent = '0');
+  (function step(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);                 // ease-out — เร็วตอนต้น ค่อย ๆ หยุด
+    nums.forEach(el => { el.textContent = Math.round(Number(el.dataset.to) * e); });
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+
 function stats(list) {
   const s = { total: list.length, submitted: 0, in_progress: 0, done: 0, rejected: 0 };
   list.forEach(j => { if (s[j.status] !== undefined) s[j.status]++; });
@@ -725,17 +853,25 @@ function renderReport() {
   const list = periodJobs(), s = stats(list);
   $('#report-range').textContent = reportPeriod === 'all' ? 'ข้อมูลทั้งหมด · ' + list.length + ' รายการ' : reportPeriod + ' วันล่าสุด · ' + list.length + ' รายการ';
 
+  const kpiCell = (c, delay, ico, lbl, val, sub) =>
+    `<div class="kpi" style="--c:${c};animation-delay:${delay}ms">
+       <div class="kpi-lbl">${ico}${lbl}</div>
+       <div class="kpi-val"><span class="num" data-to="${val}">${val}</span></div>
+       <div class="kpi-sub">${sub}</div>
+     </div>`;
+
   $('#kpi-grid').innerHTML = `
     <div class="kpi hero-kpi" style="animation-delay:0ms">
-      <div class="kpi-lbl">อัตราปิดงาน</div>
-      <div class="kpi-val">${s.rate}<span style="font-size:18px">%</span></div>
+      <div class="kpi-lbl">${KPI_ICO.rate}อัตราปิดงาน</div>
+      <div class="kpi-val"><span class="num" data-to="${s.rate}">${s.rate}</span><span style="font-size:18px">%</span></div>
       <div class="kpi-sub">ปิดแล้ว ${s.done} จาก ${s.total} รายการ · เฉลี่ย ${s.lead.toFixed(1)} วัน/งาน</div>
       ${ring(s.rate)}
     </div>
-    <div class="kpi" style="--c:${ST.submitted.ink};animation-delay:60ms"><div class="kpi-lbl">รอตรวจสอบ</div><div class="kpi-val">${s.submitted}</div><div class="kpi-sub">ต้องอนุมัติ</div></div>
-    <div class="kpi" style="--c:${ST.in_progress.ink};animation-delay:100ms"><div class="kpi-lbl">กำลังดำเนินการ</div><div class="kpi-val">${s.in_progress}</div><div class="kpi-sub">อยู่ระหว่างแก้ไข</div></div>
-    <div class="kpi" style="--c:${ST.done.ink};animation-delay:140ms"><div class="kpi-lbl">จบงาน</div><div class="kpi-val">${s.done}</div><div class="kpi-sub">ปิดงานแล้ว</div></div>
-    <div class="kpi" style="--c:${ST.rejected.ink};animation-delay:180ms"><div class="kpi-lbl">ไม่อนุมัติ</div><div class="kpi-val">${s.rejected}</div><div class="kpi-sub">ตีกลับ</div></div>`;
+    ${kpiCell(ST.submitted.ink,   60, KPI_ICO.submitted,   'รอตรวจสอบ',     s.submitted,   'ต้องอนุมัติ')}
+    ${kpiCell(ST.in_progress.ink, 100, KPI_ICO.in_progress, 'กำลังดำเนินการ', s.in_progress, 'อยู่ระหว่างแก้ไข')}
+    ${kpiCell(ST.done.ink,        140, KPI_ICO.done,        'จบงาน',          s.done,        'ปิดงานแล้ว')}
+    ${kpiCell(ST.rejected.ink,    180, KPI_ICO.rejected,    'ไม่อนุมัติ',     s.rejected,    'ตีกลับ')}`;
+  countUpKpis();
 
   $('#overall-note').textContent = s.total + ' รายการ';
   const keys = ['submitted', 'in_progress', 'done', 'rejected'];
@@ -978,6 +1114,12 @@ function bind() {
   // login
   $('#form-login').addEventListener('submit', doLogin);
 
+  // แถบบนยกเงาขึ้นเมื่อเนื้อหาเลื่อนลอดใต้มัน — บอกว่ายังมีของอยู่ด้านบน
+  $$('.screen').forEach(sc => sc.addEventListener('scroll', () => {
+    if (!sc.classList.contains('active')) return;
+    $('.appbar').classList.toggle('scrolled', sc.scrollTop > 4);
+  }, { passive: true }));
+
   // nav
   $$('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
   $('#scrim').addEventListener('click', closeSheets);
@@ -1116,6 +1258,16 @@ function bind() {
     $$('#f-sort .seg-item').forEach(x => x.classList.toggle('active', x.dataset.v === 'new'));
     toast('ล้างตัวกรองแล้ว');
   });
+  // ล้างตัวกรองจากกล่อง "ไม่พบรายการงาน" — ไม่ต้องเปิดชีตตัวกรองอีกรอบ
+  $('#empty-reset').addEventListener('click', () => {
+    filters = { q: '', status: ['all'], mine: false, area: '', machine: '', from: '', to: '', sort: 'new' };
+    $('#f-q').value = ''; $('#f-area').value = ''; $('#f-machine').value = ''; $('#f-from').value = ''; $('#f-to').value = '';
+    $$('#f-status .pick').forEach(p => p.classList.toggle('active', p.dataset.fs === 'all'));
+    $$('#f-sort .seg-item').forEach(x => x.classList.toggle('active', x.dataset.v === 'new'));
+    $$('#quickfilter .qf').forEach(x => x.classList.toggle('active', x.dataset.status === 'all'));
+    renderGallery();
+  });
+
   $('#f-apply').addEventListener('click', () => {
     filters.q = $('#f-q').value.trim();
     filters.area = $('#f-area').value; filters.machine = $('#f-machine').value;
@@ -1193,6 +1345,7 @@ async function init() {
   $('#lock-ver').textContent = 'v' + APP_VERSION;
   fillSelects();
   bind();
+  renderShots();      // วางช่องรูปว่างไว้ก่อน จะได้เห็นว่าถ่ายได้ 4 รูป
   restoreDraft();
 
   /* จำผู้ใช้เดิมไว้ — เปิดแอปครั้งต่อไปเข้าได้เลย (ยืนยันกับเซิร์ฟเวอร์อีกครั้ง) */

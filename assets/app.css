@@ -43,6 +43,11 @@
   --sh-brand:0 6px 18px rgba(26,71,184,.24);
   --sh-inset:inset 0 1px 0 rgba(255,255,255,.6);
   --ring:0 0 0 3.5px rgba(74,121,232,.16);
+  /* เส้นตารางแบบแบบแปลนช่าง — พื้นหลังของแอป */
+  --grid:rgba(20,60,140,.05);
+  /* พื้นผิวของ skeleton ตอนโหลดข้อมูล */
+  --skel:#E7EDF8;
+  --skel-hi:#F5F8FE;
 
   /* จังหวะการเคลื่อนไหว — ใช้ค่าชุดเดียวกันทุกที่ ภาพรวมจึงรู้สึกเป็นระบบ */
   --dur-1:140ms; --dur-2:220ms; --dur-3:320ms;
@@ -93,6 +98,17 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
     radial-gradient(520px 300px at 0% 100%, rgba(14,159,110,.05) 0%, transparent 60%),
     var(--paper);
 }
+/* ตารางบาง ๆ แบบกระดาษไขเขียนแบบ — ให้พื้นที่ว่างไม่โล่งจนเกินไป
+   จางลงเรื่อย ๆ จากบนลงล่าง เนื้อหาจึงยังเป็นพระเอก */
+.app::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(var(--grid) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;
+  -webkit-mask-image:radial-gradient(120% 78% at 50% 0%,#000 0%,rgba(0,0,0,.35) 46%,transparent 82%);
+          mask-image:radial-gradient(120% 78% at 50% 0%,#000 0%,rgba(0,0,0,.35) 46%,transparent 82%);
+}
 
 /* ---------- app bar (white / brand blue) ---------- */
 .appbar{
@@ -101,7 +117,9 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
   background:linear-gradient(180deg,#FFFFFF 0%,#FBFCFE 100%);
   color:var(--ink);position:relative;z-index:5;
   box-shadow:0 1px 0 rgba(203,216,239,.9), 0 8px 24px rgba(14,54,160,.06);
+  transition:box-shadow var(--dur-2) linear;
 }
+.appbar.scrolled{box-shadow:0 1px 0 rgba(203,216,239,.9), 0 10px 30px rgba(14,54,160,.14)}
 .appbar::after{
   content:"";position:absolute;left:0;right:0;bottom:-3px;height:3px;
   background:linear-gradient(90deg,var(--navy-800) 0 58%, var(--blue-500) 58% 80%, var(--blue-300) 80% 100%);
@@ -965,3 +983,148 @@ button:disabled{opacity:.6;pointer-events:none}
 #emp-body,#notif-body{gap:0}
 #emp-body{padding-top:12px}
 #sheet-employees .sheet-bar-title span:first-child{font-size:14px;font-weight:600}
+
+/* =====================================================================
+   POLISH PASS — รายละเอียดงานตกแต่ง (ยังใช้ระบบสี/จังหวะเดิมทั้งหมด)
+   ===================================================================== */
+
+/* ---------- หัวข้อหน้าจอ: ขีดสีแบรนด์นำหน้า เหมือนหน้า "บันทึกงาน" ---------- */
+.screen-title::before{
+  content:"";display:block;width:34px;height:3.5px;border-radius:var(--r-pill);margin-bottom:11px;
+  background:linear-gradient(90deg,var(--blue-500),var(--navy-800));
+  box-shadow:0 2px 8px rgba(42,91,215,.32);
+}
+
+/* ---------- ตัวกรองด่วน: ตัวเลขจำนวนงานในแต่ละสถานะ ---------- */
+/* อ่านภาระงานได้ตั้งแต่ยังไม่กดเข้าไปดู — ไม่ต้องเดาว่าอันไหนมีของ */
+.qf{display:inline-flex;align-items:center;gap:7px}
+.qf .n{
+  min-width:20px;padding:0 5px;height:18px;border-radius:var(--r-pill);
+  font-family:var(--mono);font-size:10.5px;font-weight:600;line-height:18px;text-align:center;
+  background:var(--blue-50);color:var(--blue-600);
+  transition:background var(--dur-1) linear, color var(--dur-1) linear;
+}
+.qf.active .n{background:rgba(255,255,255,.22);color:#fff}
+.qf .n.zero{background:var(--paper);color:var(--ink-3)}
+.qf.active .n.zero{background:rgba(255,255,255,.14);color:rgba(255,255,255,.72)}
+
+/* ---------- การ์ดงาน: รายละเอียดเพิ่ม ---------- */
+/* แถบสถานะใต้รูปไล่จางไปทางขวา ดูเป็นงานออกแบบมากกว่าเส้นทึบ */
+.tile-body::before{
+  background:linear-gradient(90deg,var(--st,var(--line)) 0%,
+             color-mix(in srgb,var(--st,var(--line)) 22%, transparent) 100%);
+  opacity:1;
+}
+/* งานที่ยังไม่มีรูป — วางไอคอนแทน ไม่ปล่อยให้ขึ้นรูปเสีย
+   พื้นเข้มกว่าการ์ดปกติเล็กน้อย ไอคอนและรหัสงานสีขาวด้านล่างจึงยังอ่านออก */
+.tile-img.nopic{display:grid;place-items:center;background:linear-gradient(150deg,var(--blue-100),#B7C9EE)}
+.tile-img.nopic img{display:none}
+.tile-img.nopic::before{
+  content:"";width:34px;height:34px;z-index:1;opacity:.42;
+  background:var(--navy-800);
+  -webkit-mask:var(--ico-photo) center/contain no-repeat;
+          mask:var(--ico-photo) center/contain no-repeat;
+}
+/* แถวล่าง: พื้นที่ + เครื่องจักร ด้วยตัวอักษร mono ให้อ่านรหัสได้เร็ว */
+.tile-tags{display:flex;gap:5px;margin-top:7px;min-width:0}
+.tile-tag{
+  font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.2px;
+  padding:2.5px 7px;border-radius:var(--r-xs);background:var(--blue-50);color:var(--blue-600);
+  border:1px solid var(--blue-100);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.tile-tag.mc{background:var(--paper);color:var(--ink-2);border-color:var(--line);flex:0 1 auto;min-width:0}
+
+/* ---------- SKELETON — โครงร่างระหว่างรอข้อมูล ---------- */
+/* เห็นโครงหน้าทันทีแทนจอว่าง ๆ ผู้ใช้จึงรู้ว่าระบบกำลังทำงานอยู่ */
+@keyframes shimmer{to{background-position:-200% 0}}
+.sk{
+  background:linear-gradient(100deg,var(--skel) 38%,var(--skel-hi) 50%,var(--skel) 62%);
+  background-size:200% 100%;animation:shimmer 1.25s linear infinite;
+  border-radius:var(--r-xs);
+}
+.sk-tile{
+  border-radius:var(--r-m);overflow:hidden;background:var(--card);
+  border:1px solid var(--line);box-shadow:var(--sh-1);
+}
+.sk-tile .sk-img{aspect-ratio:1/1;border-radius:0}
+.sk-tile .sk-body{padding:10px}
+.sk-tile .sk-line{height:10px;border-radius:5px;margin-bottom:7px}
+.sk-tile .sk-line.w60{width:60%}
+.sk-tile .sk-line.w40{width:40%;margin-bottom:0;height:8px}
+.sk-kpi{height:82px;border-radius:var(--r-m)}
+.sk-kpi.hero{grid-column:span 2;height:104px}
+.sk-row{height:14px;border-radius:7px;margin-bottom:10px}
+.sk-block{height:120px;border-radius:var(--r-s)}
+
+/* ---------- KPI: ไอคอนประจำสถานะ ---------- */
+.kpi-lbl svg{width:14px;height:14px;color:var(--c,var(--blue-600));flex:0 0 auto}
+.kpi.hero-kpi .kpi-lbl svg{color:var(--blue-300)}
+/* เลขวิ่งขึ้นตอนเปิดหน้ารายงาน — ตัวเลขไม่กระตุกเพราะใช้ตัวเลขความกว้างเท่ากัน */
+.kpi-val{font-variant-numeric:tabular-nums}
+
+/* ---------- ไทม์ไลน์: จัดบรรทัดให้นิ่ง ---------- */
+/* เวลาลงบรรทัดของตัวเองเสมอ — เดิมมันตกบรรทัดเฉพาะตอนป้ายสิทธิ์ยาว (เช่น "Admin Improvement")
+   ทำให้แต่ละแถวสูงไม่เท่ากันจนดูกระโดด ตอนนี้ทุกแถวหน้าตาเหมือนกันหมด */
+.tl-head{align-items:baseline}
+.tl-time{flex:1 0 100%;margin:2px 0 0;text-align:right}
+.tl-role{flex:0 0 auto}
+.tl-who{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+
+/* ---------- ฟอร์ม: ช่องรูปว่างที่ยังไม่ได้ถ่าย ---------- */
+/* เห็นตั้งแต่แรกว่าถ่ายได้ 4 รูป และถ่ายไปแล้วกี่รูป */
+.slot{
+  aspect-ratio:1;border-radius:var(--r-s);border:1.5px dashed var(--line-2);
+  background:linear-gradient(145deg,#fff,var(--blue-50));
+  display:grid;place-items:center;color:#8FA6CE;
+  font-family:var(--mono);font-size:12px;font-weight:600;
+}
+
+/* ---------- Toast: ไอคอนนำหน้าข้อความ ---------- */
+/* toast เป็น fixed ที่ left:50% — ถ้าไม่กำหนดความกว้าง เบราว์เซอร์จะให้พื้นที่แค่ครึ่งจอ
+   ข้อความจึงตัดบรรทัดเร็วเกินจริง ใช้ max-content คู่กับ max-width จึงกว้างเท่าที่ควรเป็น */
+.toast{
+  display:flex;align-items:center;gap:10px;justify-content:flex-start;text-align:left;
+  border-radius:var(--r-l);width:max-content;max-width:min(340px,86vw);
+}
+.toast svg{width:16px;height:16px;flex:0 0 auto;color:var(--blue-300)}
+
+/* ---------- ไอคอนที่ใช้เป็น mask ---------- */
+:root{
+  --ico-photo:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Ccircle cx='9' cy='11' r='2'/%3E%3Cpath d='m4 18 5-4 4 3 3-2 4 3'/%3E%3C/svg%3E");
+}
+
+/* ---------- ลดการเคลื่อนไหว: หยุด shimmer ด้วย ---------- */
+@media (prefers-reduced-motion: reduce){
+  .sk{animation:none;background:var(--skel)}
+}
+
+/* ---------- ชีตรายละเอียด: ขอบล่างของหัวชีตรับสีสถานะของงาน ---------- */
+/* เปิดงานขึ้นมาก็รู้ทันทีว่าอยู่สถานะไหน โดยไม่ต้องกวาดตาหาชิป */
+.sheet-bar{position:relative}
+.sheet-bar::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:2.5px;
+  background:linear-gradient(90deg,var(--st,var(--blue-500)) 0%,
+             color-mix(in srgb,var(--st,var(--blue-500)) 18%, transparent) 100%);
+  transition:background var(--dur-2) linear;
+}
+
+/* ---------- แถบรูป: ป้ายนับจำนวนรูป ---------- */
+.sec-title .count{
+  font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--blue-600);
+  background:var(--blue-50);border:1px solid var(--blue-100);
+  padding:1.5px 7px;border-radius:var(--r-pill);
+}
+/* เส้นคั่นของ sec-title อยู่หลังสุดเสมอ ป้ายนับจึงต้องแทรกก่อนเส้น */
+.sec-title::after{order:9}
+
+/* ---------- สถานะว่าง: ข้อความตามตัวกรองที่เลือกอยู่ ---------- */
+.empty-hint{
+  display:inline-flex;align-items:center;gap:7px;margin-top:16px;min-height:44px;
+  font-size:12.5px;font-weight:600;color:var(--blue-600);
+  background:var(--card);border:1px solid var(--blue-100);
+  padding:0 18px;border-radius:var(--r-pill);box-shadow:var(--sh-1);
+  transition:transform var(--dur-1) var(--ease), background var(--dur-1) linear;
+}
+.empty-hint svg{width:15px;height:15px}
+.empty-hint:active{transform:scale(.96);background:var(--blue-50)}
+@media(hover:hover){.empty-hint:hover{background:var(--blue-50)}}
