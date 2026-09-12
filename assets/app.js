@@ -54,6 +54,7 @@ let currentJob = null;
 let reportPeriod = 'all';
 let loadError = '';                   // ข้อความเมื่อดึงข้อมูลจากเซิร์ฟเวอร์ไม่สำเร็จ
 let notifTimer = null;
+let loginGen = 0;                     // เพิ่มทุกครั้งที่มีผู้ใช้คนใหม่เข้าระบบ — ใช้กันผลลัพธ์เก่าค้างมาทับ
 
 const $  = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -212,6 +213,7 @@ async function doLogin(e) {
   try {
     const r = await api('/login', { method: 'POST', body: { code } });
     ME = r.me;
+    loginGen++;                       // ล็อกอินรอบนี้ถือเป็นตัวจริง — งานเก่าที่ยังค้างอยู่ให้ตกไป
     localStorage.setItem(K_USER, JSON.stringify(ME));
     await enterApp();
   } catch (err) {
@@ -236,6 +238,7 @@ async function enterApp() {
 function logout() {
   localStorage.removeItem(K_USER);
   ME = null;
+  loginGen++;
   clearInterval(notifTimer);
   location.reload();
 }
@@ -1353,12 +1356,15 @@ async function init() {
   try { saved = JSON.parse(localStorage.getItem(K_USER) || 'null'); } catch (e) {}
   if (saved && saved.id) {
     ME = saved;
+    const gen = ++loginGen;           // ถ้าระหว่างรอมีคนล็อกอินสำเร็จ ผลของรอบนี้ต้องไม่ไปแตะ ME
     try {
       const b = await api('/bootstrap');
+      if (gen !== loginGen) return;   // มีล็อกอินใหม่เข้ามาแทนแล้ว — ปล่อยผลรอบนี้ทิ้ง
       if (b.me) { await enterApp(); return; }
       ME = null; localStorage.removeItem(K_USER);
       showLockErr('บัญชีนี้ถูกปิดใช้งานหรือถูกลบแล้ว — ติดต่อผู้ดูแลระบบ');
     } catch (e) {
+      if (gen !== loginGen) return;   // มีล็อกอินใหม่เข้ามาแทนแล้ว — ห้ามล้าง ME ทิ้ง
       ME = null;
       showLockErr(e.message);
     }
