@@ -51,6 +51,7 @@ let S = { jobs: [], areas: [], machines: [], pending: 0, employees: [] };
 let filters = { q: '', status: ['all'], mine: false, area: '', machine: '', from: '', to: '', sort: 'new' };
 let draft = { photos: [] };
 let currentJob = null;
+let pendingClose = false;             // กด "ปิดงาน" ไว้แล้วแต่ยังไม่มีรูป After — ปิดต่อให้เมื่ออัปโหลดเสร็จ
 let reportPeriod = 'all';
 let loadError = '';                   // ข้อความเมื่อดึงข้อมูลจากเซิร์ฟเวอร์ไม่สำเร็จ
 let notifTimer = null;
@@ -155,6 +156,10 @@ function busy(btn, txtEl, msg) {
 function compress(file, max = 1400, q = 0.72) {
   return new Promise(res => {
     const fr = new FileReader();
+    /* อ่านไฟล์ไม่สำเร็จ (ไฟล์เสีย / รูปแบบที่เครื่องเปิดไม่ได้) ต้องจบ promise ให้ได้
+       ไม่งั้นปุ่มจะค้างอยู่ที่ "กำลังอัปโหลด..." ตลอดไป */
+    fr.onerror = () => res(null);
+    fr.onabort = () => res(null);
     fr.onload = () => {
       const img = new Image();
       img.onload = () => {
@@ -320,6 +325,10 @@ function go(name) {
 
 /* ---------- sheet: เปิด/ปิด + ปุ่ม Back ของเครื่อง + Esc + คืนโฟกัส ---------- */
 let lastFocus = null;
+/* จำนวน history.back() ที่ "เราสั่งเอง" ตอนปิดชีต แล้วยังไม่ถึงคิว popstate
+   ถ้าผู้ใช้กดเปิดชีตใบใหม่ทันทีหลังปิดใบเก่า popstate ที่ตามมาทีหลังจะไปปิดใบใหม่ทิ้ง
+   อาการคือ "กดปุ่มแล้วไม่มีอะไรขึ้น" — ตัวนับนี้บอกให้ข้าม popstate ที่เป็นของเราเอง */
+let selfBack = 0;
 
 function openSheet(id) {
   lastFocus = document.activeElement;
@@ -341,7 +350,7 @@ function closeSheets(fromPop) {
   $$('.sheet').forEach(s => { s.classList.remove('on'); s.setAttribute('aria-hidden', 'true'); });
   $('#scrim').classList.remove('on');
   $('#app').removeAttribute('aria-hidden');
-  if (wasOpen && !fromPop && history.state && history.state.sheet) history.back();
+  if (wasOpen && !fromPop && history.state && history.state.sheet) { selfBack++; history.back(); }
   if (lastFocus && lastFocus.isConnected) { lastFocus.focus({ preventScroll: true }); lastFocus = null; }
 }
 
@@ -584,6 +593,7 @@ function renderQuickCounts() {
 /* DETAIL                                                              */
 /* ------------------------------------------------------------------ */
 async function openDetail(id) {
+  pendingClose = false;
   const cached = S.jobs.find(x => String(x.id) === String(id));
   if (cached) { currentJob = cached; renderDetail(); }
   openSheet('#sheet-detail');
@@ -674,12 +684,21 @@ function renderDetail(mode) {
 
     ${(canManage(j) && j.status === 'in_progress') ? `
     <div>
-      <div class="sec-title"><span class="tagline after">AFTER</span> เพิ่มรูปหลังแก้ไข</div>
-      <label class="shot-btn primary" style="width:100%">
-        <svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.4"/></svg>
-        <span id="after-btn-txt">ถ่ายรูป After</span>
-        <input type="file" accept="image/*" capture="environment" id="in-after" hidden multiple>
-      </label>
+      <div class="sec-title"><span class="tagline after">AFTER</span> เพิ่มรูปหลังแก้ไข
+        <span class="count">${j.after.length}/4 รูป</span></div>
+      <p class="hint">ต้องมีรูป After อย่างน้อย 1 รูปจึงจะปิดงานได้ — ถ่ายใหม่ หรือเลือกรูปที่ถ่ายไว้แล้วก็ได้</p>
+      <div class="shot-actions">
+        <label class="shot-btn primary">
+          <svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.4"/></svg>
+          <span id="after-btn-txt">ถ่ายรูป After</span>
+          <input type="file" accept="image/*" capture="environment" id="in-after" hidden multiple>
+        </label>
+        <label class="shot-btn">
+          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 18 5-4 4 3 3-2 4 3"/></svg>
+          แกลเลอรี
+          <input type="file" accept="image/*" id="in-after-pick" hidden multiple>
+        </label>
+      </div>
     </div>` : ''}
 
     ${canReply ? `
@@ -735,7 +754,10 @@ async function act(what) {
   if (what === 'reopen')  body = { action: 'reopen' };
   if (what === 'close') {
     if (!j.after.length) {
-      toast('กรุณาถ่ายรูป After ก่อนปิดงาน');
+      /* จำไว้ว่าตั้งใจจะปิดงาน — พออัปโหลดรูป After เสร็จจะปิดงานต่อให้เลย
+         ไม่ต้องให้ผู้ใช้ไล่กดปุ่มปิดงานซ้ำอีกรอบ */
+      pendingClose = true;
+      toast('ปิดงานต้องมีรูป After — เลือกรูปแล้วระบบจะปิดงานให้ต่อ');
       const i = $('#in-after'); if (i) i.click();
       return;
     }
@@ -780,29 +802,48 @@ async function sendMsg() {
   } catch (e) { toast(e.message); btn.disabled = false; }
 }
 
+/* files = อาร์เรย์ของ File ที่คัดลอกออกมาแล้ว (ดูเหตุผลที่ตัวดัก change ของ #detail-body) */
 async function addAfterPhotos(files) {
   const j = currentJob;
-  const list = Array.from(files).slice(0, 4 - j.after.length);
-  if (!list.length) { toast('เพิ่มรูปได้สูงสุด 4 รูป'); return; }
+  if (!j) { pendingClose = false; return; }
+  const list = Array.from(files || []);
+  if (!list.length) { pendingClose = false; return; }   // กดยกเลิกจากหน้าเลือกรูป — ไม่ต้องเตือนอะไร
+
+  const room = 4 - j.after.length;
+  if (room <= 0) { toast('รูป After ครบ 4 รูปแล้ว'); pendingClose = false; return; }
+  const pick = list.slice(0, room);
+  if (list.length > room) toast(`เพิ่มรูป After ได้อีก ${room} รูป — ใช้ ${room} รูปแรก`);
+
   const txt = $('#after-btn-txt');
-  const old = txt ? txt.textContent : '';
+  const labels = $$('#detail-body .shot-btn');
+  const foot = $$('#detail-foot .btn');
+  labels.forEach(b => b.classList.add('busy'));
+  foot.forEach(b => b.disabled = true);
+  const unlock = () => {
+    if (txt) txt.textContent = 'ถ่ายรูป After';
+    labels.forEach(b => b.classList.remove('busy'));
+    foot.forEach(b => b.disabled = false);
+  };
+
   try {
     const keys = [];
-    for (let i = 0; i < list.length; i++) {
-      if (txt) txt.textContent = `กำลังอัปโหลด ${i + 1}/${list.length}...`;
-      const d = await compress(list[i]);
+    for (let i = 0; i < pick.length; i++) {
+      if (txt) txt.textContent = `กำลังอัปโหลด ${i + 1}/${pick.length}...`;
+      const d = await compress(pick[i]);
       if (d) keys.push(await uploadPhoto(d));
     }
-    if (!keys.length) { toast('อ่านไฟล์รูปไม่ได้'); return; }
+    if (!keys.length) throw new Error('อ่านไฟล์รูปไม่ได้ — ลองถ่ายใหม่ หรือเลือกรูปจากแกลเลอรีแทน');
     await api('/jobs/' + j.id + '/photos', { method: 'POST', body: { kind: 'after', keys } });
     const r = await api('/jobs/' + j.id);
     currentJob = normJob(r.job);
     replaceJob(currentJob);
     renderDetail(); renderGallery();
-    toast('เพิ่มรูป After แล้ว');
+    toast('เพิ่มรูป After แล้ว ' + keys.length + ' รูป');
+    if (pendingClose) { pendingClose = false; await act('close'); }
   } catch (e) {
+    pendingClose = false;
+    unlock();
     toast(e.message);
-    if (txt) txt.textContent = old;
   }
 }
 
@@ -982,10 +1023,12 @@ let empFilter = { q: '', role: '' };
 
 async function openEmployees() {
   openSheet('#sheet-employees');
+  toggleEmpNew(false);
   $('#emp-body').innerHTML = '<p class="empty-text" style="text-align:center;padding:24px 0">กำลังโหลดรายชื่อ...</p>';
   try {
     const r = await api('/employees');
     S.employees = r.employees || [];
+    fillDeptList();
     renderEmployees();
   } catch (e) {
     $('#emp-body').innerHTML = `<p class="empty-text" style="text-align:center;padding:24px 0">${esc(e.message)}</p>`;
@@ -1011,6 +1054,9 @@ function renderEmployees() {
         </div>
         <button class="toggle ${e.active ? 'on' : ''}" data-toggle="${esc(e.id)}"
           aria-label="${e.active ? 'ปิดการใช้งาน' : 'เปิดการใช้งาน'} ${esc(e.name)}"><i></i></button>
+        <button class="icon-btn sm" data-delemp="${esc(e.id)}" aria-label="ลบ ${esc(e.name)} ออกจากระบบ">
+          <svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2m-7 0 1 12h8l1-12"/></svg>
+        </button>
       </div>
       <div class="emp-roles">
         ${ROLES.map(r => `<button class="pick plain ${r === role ? 'active' : ''}" data-role="${r}" data-for="${esc(e.id)}">${ROLE_LABEL[r]}</button>`).join('')}
@@ -1040,16 +1086,74 @@ async function setEmpActive(id) {
   } catch (err) { e.active = next ? 0 : 1; renderEmployees(); toast(err.message); }
 }
 
-async function syncPsif() {
-  const note = $('#s-sync-note');
-  const old = note.textContent;
-  note.textContent = 'กำลังดึงรายชื่อ...';
+/* ---------- เพิ่ม / ลบ รหัสพนักงาน ---------- */
+let newEmpRole = 'user';
+
+function fillNewEmpRoles() {
+  $('#emp-new-role').innerHTML = ROLES.map(r =>
+    `<button type="button" class="pick plain ${r === newEmpRole ? 'active' : ''}" data-newrole="${r}">${ROLE_LABEL[r]}</button>`).join('');
+}
+/* ตัวช่วยเติมแผนก — เอาจากพื้นที่ที่ตั้งไว้ รวมกับแผนกที่มีคนอยู่แล้ว */
+function fillDeptList() {
+  const list = [...new Set(S.areas.concat(S.employees.map(e => e.dept)).filter(Boolean))].sort();
+  $('#dept-list').innerHTML = list.map(d => `<option value="${esc(d)}">`).join('');
+}
+function empNewErr(msg) {
+  const b = $('#emp-new-err');
+  b.textContent = msg || '';
+  b.classList.toggle('on', !!msg);
+}
+function toggleEmpNew(show) {
+  const f = $('#emp-new');
+  const on = show === undefined ? f.hidden : show;
+  f.hidden = !on;
+  $('#emp-add-open').setAttribute('aria-expanded', on ? 'true' : 'false');
+  $('#emp-add-open').classList.toggle('active', on);
+  empNewErr('');
+  if (on) { fillDeptList(); fillNewEmpRoles(); setTimeout(() => $('#emp-new-id').focus(), 80); }
+}
+
+async function addEmployee(ev) {
+  if (ev) ev.preventDefault();
+  const id = $('#emp-new-id').value.trim();
+  const name = $('#emp-new-name').value.trim();
+  const dept = $('#emp-new-dept').value.trim();
+  empNewErr('');
+  if (!id)   { empNewErr('กรุณากรอกรหัสพนักงาน');  $('#emp-new-id').focus();   return; }
+  if (!name) { empNewErr('กรุณากรอกชื่อ-นามสกุล'); $('#emp-new-name').focus(); return; }
+
+  const done = busy($('#emp-new-save'), $('#emp-new-save-txt'), 'กำลังบันทึก...');
   try {
-    const r = await api('/employees/sync', { method: 'POST', body: {} });
-    note.textContent = 'อัปเดตล่าสุด ' + fmtTime(r.at) + ' · ' + r.synced + ' คน';
-    toast('ดึงรายชื่อจาก PSIF แล้ว ' + r.synced + ' คน');
-    if (S.employees.length) { const e = await api('/employees'); S.employees = e.employees || []; renderEmployees(); }
-  } catch (e) { note.textContent = old; toast(e.message); }
+    const r = await api('/employees', { method: 'POST', body: { id, name, dept, role: newEmpRole } });
+    S.employees.push(r.employee);
+    S.employees.sort((a, b) =>
+      String(a.dept || '').localeCompare(String(b.dept || ''), 'th') ||
+      String(a.name || '').localeCompare(String(b.name || ''), 'th'));
+    $('#emp-new-id').value = ''; $('#emp-new-name').value = ''; $('#emp-new-dept').value = '';
+    newEmpRole = 'user'; fillNewEmpRoles(); fillDeptList();
+    empFilter.q = ''; $('#emp-q').value = '';        // เห็นคนที่เพิ่งเพิ่มทันที ไม่ถูกคำค้นเดิมกรองหาย
+    renderEmployees(); renderMeCard();
+    toast('เพิ่ม ' + r.employee.name + ' (' + r.employee.id + ') แล้ว');
+    $('#emp-new-id').focus();
+  } catch (e) { empNewErr(e.message); }
+  finally { done(); }
+}
+
+async function delEmployee(id) {
+  const e = S.employees.find(x => String(x.id) === String(id));
+  if (!e) return;
+  if (!confirm('ลบ ' + e.name + ' (' + e.id + ') ออกจากระบบ?\n\nถ้าเคยแจ้งงานไว้ ระบบจะปิดใช้งานแทนการลบ เพื่อไม่ให้ประวัติงานเสียหาย')) return;
+  try {
+    const r = await api('/employees/' + encodeURIComponent(id), { method: 'DELETE' });
+    if (r.disabled) {
+      e.active = 0;
+      toast('มีงานอ้างอยู่ ' + r.jobs + ' รายการ — ปิดใช้งานแทนการลบ');
+    } else {
+      S.employees = S.employees.filter(x => String(x.id) !== String(id));
+      toast('ลบ ' + e.name + ' ออกจากระบบแล้ว');
+    }
+    renderEmployees(); renderMeCard();
+  } catch (err) { toast(err.message); }
 }
 
 /* ---------- พื้นที่ ---------- */
@@ -1134,7 +1238,6 @@ function bind() {
   $('#btn-settings').addEventListener('click', () => { renderMeCard(); openSheet('#sheet-settings'); });
   $('#s-employees').addEventListener('click', openEmployees);
   $('#s-areas').addEventListener('click', openAreas);
-  $('#s-sync').addEventListener('click', syncPsif);
   $('#s-logout').addEventListener('click', logout);
   $('#s-api-save').addEventListener('click', async () => {
     const v = $('#s-api').value.trim().replace(/\/+$/, '');
@@ -1151,8 +1254,20 @@ function bind() {
   $('#emp-body').addEventListener('click', e => {
     const r = e.target.closest('[data-role]');
     if (r) { setEmpRole(r.dataset.for, r.dataset.role); return; }
+    const d = e.target.closest('[data-delemp]');
+    if (d) { delEmployee(d.dataset.delemp); return; }
     const t = e.target.closest('[data-toggle]');
     if (t) setEmpActive(t.dataset.toggle);
+  });
+
+  // เพิ่มรหัสพนักงานใหม่
+  $('#emp-add-open').addEventListener('click', () => toggleEmpNew());
+  $('#emp-new-cancel').addEventListener('click', () => toggleEmpNew(false));
+  $('#emp-new').addEventListener('submit', addEmployee);
+  $('#emp-new-role').addEventListener('click', e => {
+    const b = e.target.closest('[data-newrole]'); if (!b) return;
+    newEmpRole = b.dataset.newrole;
+    fillNewEmpRoles();
   });
 
   // areas sheet
@@ -1193,8 +1308,11 @@ function bind() {
   });
 
   // new job
-  $('#in-camera').addEventListener('change', e => { addPhotos(e.target.files); e.target.value = ''; });
-  $('#in-gallery').addEventListener('change', e => { addPhotos(e.target.files); e.target.value = ''; });
+  ['#in-camera', '#in-gallery'].forEach(sel => $(sel).addEventListener('change', e => {
+    const files = Array.from(e.target.files || []);   // คัดลอกก่อนล้างค่า (เหตุผลเดียวกับรูป After)
+    e.target.value = '';
+    addPhotos(files);
+  }));
   $('#shots').addEventListener('click', e => {
     const b = e.target.closest('[data-rm]'); if (!b) return;
     draft.photos.splice(+b.dataset.rm, 1); renderShots(); saveDraft();
@@ -1288,9 +1406,13 @@ function bind() {
     if (p) { const m = $('#msg'); m.value = p.dataset.preset; m.focus(); return; }
     if (e.target.closest('#btn-send')) sendMsg();
   });
+  /* คัดลอกรายการไฟล์ออกมาก่อนล้างค่า input — บางเบราว์เซอร์ (โดยเฉพาะบนมือถือ)
+     ล้าง FileList ตัวเดิมทิ้งไปด้วย ทำให้ตัวแปรที่ถืออยู่กลายเป็นว่างเปล่า
+     อาการคือ "กดถ่ายรูป After แล้วไม่มีอะไรเกิดขึ้น" จนปิดงานไม่ได้ */
   $('#detail-body').addEventListener('change', e => {
-    if (e.target.id !== 'in-after') return;
-    const files = e.target.files; e.target.value = '';
+    if (e.target.id !== 'in-after' && e.target.id !== 'in-after-pick') return;
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
     addAfterPhotos(files);
   });
   $('#detail-foot').addEventListener('click', e => {
@@ -1301,6 +1423,10 @@ function bind() {
   // ปุ่ม Back ของมือถือ/เบราว์เซอร์ → ปิด overlay ทีละชั้น แทนการออกจากแอป
   window.addEventListener('popstate', () => {
     if ($('#viewer').classList.contains('on')) { $('#viewer').classList.remove('on'); return; }
+    const mine = selfBack > 0;
+    if (mine) selfBack--;
+    // back ที่เราสั่งเองตอนปิดชีต มาถึงช้ากว่าการเปิดชีตใบใหม่ — ปล่อยใบใหม่ไว้อย่างนั้น
+    if (mine && $$('.sheet.on').length) return;
     closeSheets(true);
   });
   // Esc → ปิด overlay (สำหรับผู้ใช้คีย์บอร์ด)

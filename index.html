@@ -191,7 +191,8 @@
 
       <div class="kpi-grid" id="kpi-grid"></div>
 
-      <div class="card">
+      <div class="report-cards">
+      <div class="card wide">
         <div class="card-head">
           <h2 class="card-title">ความคืบหน้ารวม</h2>
           <span class="card-note" id="overall-note">—</span>
@@ -216,6 +217,7 @@
         <div class="bars" id="trend-bars" role="img" aria-label="กราฟแนวโน้มรายเดือน"></div>
         <div class="bars-legend"><span class="lg"><i style="background:var(--blue-600)"></i>แจ้งเข้า</span><span class="lg"><i style="background:var(--green)"></i>ปิดได้</span></div>
       </div>
+      </div><!-- /report-cards -->
 
       <button class="btn-export" id="btn-export">
         <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
@@ -332,11 +334,6 @@
         <span class="rowbtn-body"><b>พื้นที่ / ไลน์ผลิต</b><small id="s-area-note">รายการที่ให้เลือกตอนแจ้งงาน</small></span>
         <svg class="rowbtn-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
       </button>
-      <button class="rowbtn" id="s-sync">
-        <span class="rowbtn-ico"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14-4.5L4 9"/><path d="M4 5v4h4"/><path d="M4 13a8 8 0 0 0 14 4.5L20 15"/><path d="M20 19v-4h-4"/></svg></span>
-        <span class="rowbtn-body"><b>ดึงรายชื่อพนักงานจาก PSIF</b><small id="s-sync-note">อัปเดตชื่อ / แผนก / สถานะ — ไม่ทับสิทธิ์ที่ตั้งไว้</small></span>
-        <svg class="rowbtn-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
-      </button>
     </div>
 
     <div class="sec-title">การเชื่อมต่อ</div>
@@ -360,11 +357,45 @@
   <header class="sheet-bar">
     <button class="icon-btn dark" data-close aria-label="ย้อนกลับ"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>
     <div class="sheet-bar-title"><span id="h-emp">ข้อมูลพนักงาน &amp; สิทธิ์</span><span id="emp-count">—</span></div>
+    <button class="icon-btn dark" id="emp-add-open" aria-label="เพิ่มพนักงาน" aria-expanded="false">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
   </header>
   <div class="emp-tools">
     <input id="emp-q" class="input" placeholder="ค้นหา รหัส / ชื่อ / แผนก" autocomplete="off">
     <div class="select-wrap sm"><select id="emp-role-filter" class="input"></select><svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
   </div>
+
+  <!-- เพิ่มรหัสพนักงานใหม่ — เปิด/ปิดด้วยปุ่ม + ที่แถบหัวชีต -->
+  <form class="emp-new" id="emp-new" novalidate hidden>
+    <div class="sec-title">เพิ่มรหัสพนักงานใหม่</div>
+    <div class="two">
+      <div class="field">
+        <label class="lbl" for="emp-new-id">รหัสพนักงาน <span class="req">จำเป็น</span></label>
+        <input id="emp-new-id" class="input mono" placeholder="เช่น G-260" autocomplete="off"
+               autocapitalize="characters" spellcheck="false">
+      </div>
+      <div class="field">
+        <label class="lbl" for="emp-new-dept">แผนก / พื้นที่</label>
+        <input id="emp-new-dept" class="input" placeholder="เช่น VSM4" autocomplete="off" list="dept-list">
+        <datalist id="dept-list"></datalist>
+      </div>
+    </div>
+    <div class="field">
+      <label class="lbl" for="emp-new-name">ชื่อ-นามสกุล <span class="req">จำเป็น</span></label>
+      <input id="emp-new-name" class="input" placeholder="เช่น นายสมชาย ใจดี" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="lbl">สิทธิ์การใช้งาน</label>
+      <div class="chips-pick" id="emp-new-role"></div>
+    </div>
+    <p class="err" id="emp-new-err" role="alert">—</p>
+    <div class="row">
+      <button type="button" class="btn ghost" id="emp-new-cancel">ยกเลิก</button>
+      <button type="submit" class="btn solid" id="emp-new-save"><span id="emp-new-save-txt">เพิ่มพนักงาน</span></button>
+    </div>
+  </form>
+
   <div class="sheet-body" id="emp-body"></div>
 </section>
 

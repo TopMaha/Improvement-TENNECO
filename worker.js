@@ -117,7 +117,7 @@ async function loginRoute(env, request) {
   }
   if (!emp) {
     const n = await env.DB.prepare('SELECT COUNT(*) c FROM employees').first();
-    if (!n || !n.c) return err('ยังไม่มีรายชื่อพนักงานในระบบ — ให้ผู้ดูแลกดปุ่ม "ดึงรายชื่อจาก PSIF" ก่อน', 404);
+    if (!n || !n.c) return err('ยังไม่มีรายชื่อพนักงานในระบบ — ติดต่อผู้ดูแลระบบให้เพิ่มรหัสพนักงานก่อน', 404);
     return err('ไม่พบรหัสพนักงานนี้ (ลองใส่ขีด เช่น G-260)', 404);
   }
   if (emp.active === 0) return err('รหัสนี้ถูกปิดใช้งานแล้ว — ติดต่อผู้ดูแลระบบ', 403);
@@ -408,6 +408,8 @@ async function servePhoto(env, key) {
 async function employeesRoute(env, request, seg) {
   const M = request.method;
   if (M === 'POST' && seg[1] === 'sync') return await syncFromPsif(env, request);
+  if (M === 'POST' && !seg[1])           return await createEmployee(env, request);
+  if (M === 'DELETE' && seg[1])          return await deleteEmployee(env, request, decodeURIComponent(seg[1]));
 
   if (M === 'GET') {
     const { me, error } = await requireUser(env, request);
@@ -438,6 +440,68 @@ async function employeesRoute(env, request, seg) {
     return ok({ employee: emp });
   }
   return err('ไม่รองรับคำสั่งนี้', 405);
+}
+
+/* เพิ่มพนักงานเองในหน้าตั้งค่า — ปกติเฉพาะ Super Admin
+ * ยกเว้นตอนตาราง employees ยังว่าง (ติดตั้งครั้งแรก) ตอนนั้นยังไม่มีใครล็อกอินได้เลย
+ * คนแรกที่ถูกเพิ่มจึงได้สิทธิ์ Super Admin ไปเลย เพื่อเข้าหน้าตั้งค่าไปเพิ่มคนอื่นต่อ */
+async function createEmployee(env, request) {
+  const cnt = await env.DB.prepare('SELECT COUNT(*) c FROM employees').first();
+  const firstRun = !cnt || !cnt.c;
+  if (!firstRun) {
+    const { error } = await requireSuper(env, request);
+    if (error) return error;
+  }
+  const b = await request.json().catch(() => ({}));
+  const id = String(b.id || '').trim();
+  const name = String(b.name || '').trim();
+  const dept = String(b.dept || '').trim();
+  let role = String(b.role || 'user');
+  if (!id)   return err('กรุณากรอกรหัสพนักงาน');
+  if (!name) return err('กรุณากรอกชื่อ-นามสกุล');
+  if (!ROLES.includes(role)) role = 'user';
+  if (firstRun) role = 'admin';
+
+  /* กันรหัสซ้ำแบบพิมพ์ตัวพิมพ์ใหญ่เล็กต่างกัน (g-260 = G-260) */
+  const dup = await env.DB.prepare('SELECT id FROM employees WHERE id=? COLLATE NOCASE').bind(id).first();
+  if (dup) return err('มีรหัสพนักงาน ' + dup.id + ' อยู่ในระบบแล้ว');
+
+  await env.DB.prepare(
+    'INSERT INTO employees (id,name,dept,role,active,synced_at) VALUES (?,?,?,?,1,?)'
+  ).bind(id, name, dept, role, nowISO()).run();
+  const emp = await env.DB.prepare(
+    'SELECT id,name,dept,role,active,synced_at FROM employees WHERE id=?').bind(id).first();
+  return ok({ employee: emp, first_run: firstRun });
+}
+
+/* ลบพนักงาน — ถ้าเคยแจ้งงานไว้จะ "ปิดใช้งาน" แทนการลบ ประวัติงานจะได้ไม่ขาดชื่อผู้แจ้ง */
+async function deleteEmployee(env, request, id) {
+  const r = await requireSuper(env, request);
+  if (r.error) return r.error;
+  if (String(r.me.id).toUpperCase() === String(id).toUpperCase())
+    return err('ลบบัญชีของตัวเองไม่ได้');
+
+  const emp = await env.DB.prepare(
+    'SELECT id,name,role FROM employees WHERE id=? COLLATE NOCASE').bind(id).first();
+  if (!emp) return err('ไม่พบพนักงานรหัสนี้', 404);
+
+  /* กันลบ Super Admin คนสุดท้ายทิ้ง — จะไม่เหลือใครเข้าหน้าตั้งค่าได้อีก */
+  if (emp.role === 'admin') {
+    const n = await env.DB.prepare("SELECT COUNT(*) c FROM employees WHERE role='admin' AND active=1").first();
+    if (n && n.c <= 1) return err('ต้องเหลือ Super Admin อย่างน้อย 1 คนในระบบ');
+  }
+
+  const used = await env.DB.prepare(
+    'SELECT COUNT(*) c FROM jobs WHERE reporter_id=? COLLATE NOCASE').bind(emp.id).first();
+  if (used && used.c) {
+    await env.DB.prepare('UPDATE employees SET active=0 WHERE id=?').bind(emp.id).run();
+    return ok({ disabled: true, jobs: used.c, id: emp.id, name: emp.name });
+  }
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM notifications WHERE employee_id=?').bind(emp.id),
+    env.DB.prepare('DELETE FROM employees WHERE id=?').bind(emp.id),
+  ]);
+  return ok({ deleted: true, id: emp.id, name: emp.name });
 }
 
 /* ดึงรายชื่อจาก PSIF (psif-db) — อัปเดตชื่อ / แผนก / สถานะใช้งาน
