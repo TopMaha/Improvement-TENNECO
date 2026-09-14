@@ -9,7 +9,7 @@
 /* ------------------------------------------------------------------ */
 /* CONFIG                                                              */
 /* ------------------------------------------------------------------ */
-const APP_VERSION = '1.0';
+const APP_VERSION = '1.1';
 const DEFAULT_API = 'https://improvement-api.wiphawas-sketchup.workers.dev';
 const K_API  = 'tnc_imp_api';
 const K_USER = 'tnc_imp_user';

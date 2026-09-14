@@ -76,21 +76,10 @@ button{font-family:inherit;font-size:inherit;color:inherit;border:0;background:n
 input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 
-/* ---------- device frame (desktop) ---------- */
-.device{
-  width:100%;max-width:430px;height:100dvh;max-height:924px;
-  position:relative;
-}
-@media(min-width:520px){
-  .device{
-    border-radius:38px;overflow:hidden;
-    box-shadow:
-      0 40px 90px rgba(3,10,22,.55),
-      0 0 0 10px #0C1B2E,
-      0 0 0 11px rgba(120,160,220,.28),
-      0 0 0 12px rgba(6,16,28,.9);
-  }
-}
+/* ---------- กรอบแอป ----------
+   กางเต็มหน้าต่างเสมอ ไม่ว่าจะเปิดบนมือถือหรือคอม
+   (เดิมล็อกไว้ที่ 430px แล้ววาดเป็นกรอบมือถือกลางจอ ซึ่งเสียพื้นที่จอคอมไปเปล่า ๆ) */
+.device{width:100%;height:100dvh;position:relative}
 .app{
   position:relative;height:100%;display:flex;flex-direction:column;overflow:hidden;
   background:
@@ -563,10 +552,7 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
 }
 .sheet.on{transform:translate(-50%,0);visibility:visible}
 .sheet.full{top:0;max-height:none;height:100dvh;border-radius:0}
-@media(min-width:520px){
-  .sheet.full{height:min(924px,100dvh);border-radius:24px;top:50%;bottom:auto;transform:translate(-50%,calc(-50% + 100dvh));overflow:hidden}
-  .sheet.full.on{transform:translate(-50%,-50%)}
-}
+/* ชีตเต็มจอบนมือถือ — ส่วนบนจอกว้างย้ายไปทำเป็นหน้าต่างกลางจอที่ชั้น 640px ด้านล่าง */
 .grip{width:40px;height:4.5px;border-radius:var(--r-pill);background:var(--line-2);margin:10px auto 2px;flex:0 0 auto}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px 6px;flex:0 0 auto}
 .sheet-head h2{margin:0;font-size:17px;font-weight:700;letter-spacing:-.2px}
@@ -604,7 +590,7 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
 .sheet-bar-title{flex:1;display:flex;flex-direction:column;min-width:0}
 .sheet-bar-title .mono{font-size:11px;color:var(--blue-600);letter-spacing:.6px;font-weight:500}
 .sheet-bar-title span:last-child{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media(min-width:520px){.sheet.full .sheet-bar{padding-top:14px}}
+@media(min-width:640px){.sheet.full .sheet-bar{padding-top:14px}}
 
 .photo-strip{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
 .photo-strip::-webkit-scrollbar{display:none}
@@ -1159,14 +1145,12 @@ button:disabled{opacity:.6;pointer-events:none}
 .shot-btn.busy{opacity:.62;pointer-events:none}
 
 /* =====================================================================
-   DESKTOP — ตั้งแต่ 900px ขึ้นไป เลิกทำตัวเป็นจอมือถือ ใช้พื้นที่จอจริง
-   ต่ำกว่านั้น (แท็บเล็ต / หน้าต่างแคบ) ยังเป็นกรอบมือถือกลางจอเหมือนเดิม
+   จอกว้าง — ตั้งแต่ 640px ขึ้นไปถือว่าไม่ใช่มือถือแล้ว ใช้พื้นที่จอจริง
+   ใช้ 640 เพราะจอคอมที่ตั้งสเกล 125% หน้าต่างจริง 1088px จะเหลือ 870 CSS px
+   ตั้ง breakpoint ไว้สูงกว่านี้แล้วเครื่องแบบนั้นจะไม่เข้าโหมดจอกว้างเลย
    ===================================================================== */
-@media(min-width:900px){
+@media(min-width:640px){
   body{align-items:stretch;justify-content:stretch}
-
-  /* กรอบเครื่องมือถือหายไป — แอปเต็มหน้าต่าง */
-  .device{width:100%;max-width:none;height:100dvh;max-height:none;border-radius:0;box-shadow:none}
 
   /* เนื้อหาถูกจำกัดความกว้างไว้กลางจอ — ลากยาวเต็มจอ 27 นิ้วอ่านยากกว่าเดิม */
   .screen{padding:26px 30px 0}
@@ -1184,24 +1168,17 @@ button:disabled{opacity:.6;pointer-events:none}
   /* บันทึกงาน — คอลัมน์เดียวกว้างพอดีอ่าน ไม่ยืดเต็มจอจนตาไล่ไม่ทัน */
   #screen-new > *{max-width:760px}
 
-  /* รายงาน — KPI 4 ใบต่อแถว, การ์ดสรุปวางคู่กัน */
-  .kpi-grid{grid-template-columns:repeat(4,1fr);gap:14px}
-  .kpi.hero-kpi{grid-column:span 4;padding:22px 24px}
-  .kpi.hero-kpi .kpi-val{font-size:44px}
-  .sk-kpi.hero{grid-column:span 4}
-  .report-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
-  .report-cards .card{margin-bottom:0}
-  .report-cards .card.wide{grid-column:span 2}
-
   /* แถบแท็บล่าง — รวมปุ่มไว้กลางจอ ไม่กระจายไปติดขอบซ้ายขวา */
-  .tab:first-of-type{width:220px;justify-self:end}
-  .tab:last-of-type{width:220px;justify-self:start}
+  .tab:first-of-type{width:min(220px,34vw);justify-self:end}
+  .tab:last-of-type{width:min(220px,34vw);justify-self:start}
   /* จุดแจ้งเตือนวัดจากกึ่งกลางปุ่ม ไม่ใช่ขอบขวา — ปุ่มกว้างขึ้นแล้วจุดจะได้ไม่ลอยหนีไอคอน */
   .tab-badge{right:auto;left:50%;margin-left:9px;top:7px}
 
   /* ชีต — เป็นหน้าต่างกลางจอ ไม่ใช่แผ่นเลื่อนขึ้นจากขอบล่างของมือถือ */
+  /* เว้นขอบซ้ายขวาไว้เสมอ ไม่งั้นพอหน้าต่างแคบกว่าชีต มันจะชนขอบจนดูไม่เป็นหน้าต่าง */
   .sheet{
-    max-width:660px;max-height:86dvh;top:50%;bottom:auto;border-radius:var(--r-l);
+    max-width:min(660px,calc(100% - 48px));max-height:86dvh;
+    top:50%;bottom:auto;border-radius:var(--r-l);
     transform:translate(-50%,calc(-50% + 120dvh));
     box-shadow:0 30px 80px rgba(6,20,36,.45), inset 0 1px 0 rgba(255,255,255,.7);
   }
@@ -1210,26 +1187,45 @@ button:disabled{opacity:.6;pointer-events:none}
   .sheet-head{padding-top:18px}
   .sheet-body{padding:16px 22px 20px}
   .sheet-foot{padding-left:22px;padding-right:22px}
-  .sheet.full{max-width:1060px;height:min(880px,92dvh);border-radius:var(--r-l)}
-
-  /* รายละเอียดงาน — ข้อมูลเรียง 4 ช่องต่อแถว ไม่ต้องเลื่อนยาว */
+  /* .sheet.full มี top/height/radius ของตัวเองในชั้นพื้นฐาน ต้องเขียนทับให้ครบ
+     ไม่งั้นมันจะยังกางเต็มจอแบบมือถืออยู่ (ความเฉพาะเจาะจงสูงกว่า .sheet) */
+  .sheet.full{
+    max-width:min(1060px,calc(100% - 48px));height:min(880px,92dvh);max-height:none;
+    top:50%;bottom:auto;border-radius:var(--r-l);overflow:hidden;
+    transform:translate(-50%,calc(-50% + 120dvh));
+  }
+  .sheet.full.on{transform:translate(-50%,-50%)}
   .sheet.full .sheet-body{padding:18px 24px 22px}
   .sheet.full .sheet-foot{padding-left:24px;padding-right:24px}
   .sheet.full .sheet-foot .btn{flex:0 1 250px}
   .sheet.full .sheet-foot .btn:first-child{margin-left:auto}
-  .sheet.full .info-grid{grid-template-columns:repeat(4,1fr)}
-  .sheet.full .info.wide{grid-column:span 4}
   .compare{max-width:780px}
   .composer,.preset-row{max-width:820px}
+  .emp-tools{padding:14px 24px}
+  .emp-new{padding:16px 24px 18px}
+  .lock-card{max-width:420px}
+}
 
-  /* รายชื่อพนักงาน — 2 คอลัมน์ */
+/* กว้างพอให้ตารางแน่นขึ้นได้ — KPI 4 ใบต่อแถว · การ์ดสรุปวางคู่ · รายชื่อ 2 คอลัมน์
+   ที่ 800px เนื้อหากว้าง 740 หาร 4 ได้ใบละ ~174px ยังใส่คำว่า "กำลังดำเนินการ" ได้ไม่ตกบรรทัด */
+@media(min-width:800px){
+  .kpi-grid{grid-template-columns:repeat(4,1fr);gap:14px}
+  .kpi.hero-kpi{grid-column:span 4;padding:22px 24px}
+  .kpi.hero-kpi .kpi-val{font-size:44px}
+  .sk-kpi.hero{grid-column:span 4}
+  .report-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  .report-cards .card{margin-bottom:0}
+  .report-cards .card.wide{grid-column:span 2}
+
   #emp-body{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start}
   #emp-body .emp{margin-bottom:0}
   #emp-body > p{grid-column:span 2}
-  .emp-tools{padding:14px 24px}
-  .emp-new{padding:16px 24px 18px}
+}
 
-  .lock-card{max-width:420px}
+/* รายละเอียดงาน — ข้อมูลเรียง 4 ช่องต่อแถว เมื่อชีตกว้างพอจริง ๆ */
+@media(min-width:1100px){
+  .sheet.full .info-grid{grid-template-columns:repeat(4,1fr)}
+  .sheet.full .info.wide{grid-column:span 4}
 }
 
 /* จอกว้างมาก — เพิ่มคอลัมน์รายการงาน ไม่ปล่อยการ์ดโตจนรูปแตก */
