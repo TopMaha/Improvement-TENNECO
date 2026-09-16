@@ -68,6 +68,25 @@ const isOwner    = j => !!ME && String(j.reporterId) === String(ME.id);
 /* ------------------------------------------------------------------ */
 /* API                                                                 */
 /* ------------------------------------------------------------------ */
+/* ความผิดพลาดชั่วคราว (เน็ตหลุด · 5xx · โดนจำกัดอัตรา) ลองใหม่แล้วมีโอกาสผ่าน
+   ส่วน 4xx คือข้อมูลหรือสิทธิ์ไม่ถูกต้อง ลองซ้ำไปก็ได้ผลเดิม */
+function apiError(msg, status) {
+  const e = new Error(msg);
+  e.status = status;
+  e.retryable = status === 0 || status === 429 || status >= 500;
+  return e;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function retry(fn, tries = 3) {
+  for (let i = 0; ; i++) {
+    try { return await fn(); }
+    catch (e) {
+      if (!e.retryable || i >= tries - 1) throw e;
+      await sleep(700 * (i + 1));
+    }
+  }
+}
+
 async function api(path, opts) {
   const o = Object.assign({ method: 'GET' }, opts || {});
   o.headers = Object.assign({}, o.headers);
@@ -78,11 +97,11 @@ async function api(path, opts) {
   }
   let res;
   try { res = await fetch(API + path, o); }
-  catch (e) { throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจอินเทอร์เน็ต หรือที่อยู่เซิร์ฟเวอร์ในหน้าตั้งค่า'); }
+  catch (e) { throw apiError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจอินเทอร์เน็ต หรือที่อยู่เซิร์ฟเวอร์ในหน้าตั้งค่า', 0); }
   let data = null;
   try { data = await res.json(); } catch (e) { /* ไม่ใช่ JSON */ }
   if (!res.ok || !data || data.ok === false) {
-    throw new Error((data && data.error) || ('เซิร์ฟเวอร์ตอบกลับผิดพลาด (' + res.status + ')'));
+    throw apiError((data && data.error) || ('เซิร์ฟเวอร์ตอบกลับผิดพลาด (' + res.status + ')'), res.status);
   }
   return data;
 }
@@ -183,10 +202,15 @@ function dataURLtoBlob(d) {
   for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
   return new Blob([u8], { type: mime });
 }
-/* อัปโหลดรูปขึ้น R2 ผ่าน Worker แล้วคืน key ที่ใช้อ้างในฐานข้อมูล */
+/* อัปโหลดรูปขึ้น R2 ผ่าน Worker แล้วคืน key ที่ใช้อ้างในฐานข้อมูล
+   จำ key ที่สำเร็จไว้ตามรูป — ถ้าบันทึกพลาดแล้วกดใหม่ รูปเดิมไม่ต้องอัปซ้ำ */
+const uploadedKeys = new Map();
 async function uploadPhoto(dataUrl) {
+  const hit = uploadedKeys.get(dataUrl);
+  if (hit) return hit;
   const blob = dataURLtoBlob(dataUrl);
-  const res = await api('/photo', { method: 'POST', body: blob, headers: { 'Content-Type': blob.type } });
+  const res = await retry(() => api('/photo', { method: 'POST', body: blob, headers: { 'Content-Type': blob.type } }));
+  uploadedKeys.set(dataUrl, res.key);
   return res.key;
 }
 /* ดึงรูปกลับมาเป็น data URL — ใช้ตอน export Excel (ExcelJS ฝังรูปจาก base64) */
@@ -373,7 +397,7 @@ function saveDraft() {
   draftTimer = setTimeout(() => {
     try {
       localStorage.setItem(DKEY, JSON.stringify({
-        photos: draft.photos,
+        photos: draft.photos, reqId: draft.reqId || '',
         area: $('#in-area').value, machine: $('#in-machine').value,
         title: $('#in-title').value, detail: $('#in-detail').value
       }));
@@ -387,6 +411,7 @@ function restoreDraft() {
     if (!d) return;
     if (!(d.photos && d.photos.length) && !d.machine && !d.title && !d.detail) return;
     draft.photos = d.photos || [];
+    draft.reqId = d.reqId || '';
     if (d.area) $('#in-area').value = d.area;
     $('#in-machine').value = d.machine || '';
     $('#in-title').value = d.title || '';
@@ -442,8 +467,9 @@ async function submitJob(e) {
 
   submitting = true;
   const done = busy($('#btn-submit'), $('#btn-submit-txt'), 'กำลังอัปโหลดรูป...');
-  /* request_id กันบันทึกซ้ำ: กดส่งแล้วเน็ตหลุด กดใหม่ได้งานเดิม ไม่เกิดงานซ้ำ */
-  const reqId = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  /* request_id กันบันทึกซ้ำ: เก็บติดร่างไว้ ถ้าครั้งนี้พลาดแล้วกดใหม่ จะได้งานเดิม ไม่เกิดงานซ้ำ */
+  if (!draft.reqId) { draft.reqId = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); saveDraft(); }
+  const reqId = draft.reqId;
   try {
     const keys = [];
     for (let i = 0; i < draft.photos.length; i++) {
@@ -451,7 +477,7 @@ async function submitJob(e) {
       keys.push(await uploadPhoto(draft.photos[i]));
     }
     $('#btn-submit-txt').textContent = 'กำลังบันทึก...';
-    const r = await api('/jobs', {
+    const r = await retry(() => api('/jobs', {
       method: 'POST',
       body: {
         area: $('#in-area').value,
@@ -461,16 +487,19 @@ async function submitJob(e) {
         before: keys,
         request_id: reqId
       }
-    });
+    }));
     const j = normJob(r.job);
+    /* เซิร์ฟเวอร์อาจคืนงานเดิม (request_id ซ้ำ) — อย่าให้ขึ้นสองแถวหรือนับค้างเกินจริง */
+    S.jobs = S.jobs.filter(x => x.id !== j.id);
     S.jobs.unshift(j);
-    S.pending++;
+    if (!r.duplicate) S.pending++;
 
     $('#success-code').textContent = j.code;
     $('#success').classList.add('on');
     $('#success').setAttribute('aria-hidden', 'false');
 
     draft = { photos: [] };
+    uploadedKeys.clear();
     clearDraft();
     $('#form-new').reset();
     $('#in-area').value = defaultArea();

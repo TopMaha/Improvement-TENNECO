@@ -91,7 +91,13 @@ export default {
         default:              return err('ไม่พบปลายทางนี้: /' + head, 404);
       }
     } catch (e) {
-      return err('เกิดข้อผิดพลาดฝั่งเซิร์ฟเวอร์: ' + (e && e.message ? e.message : e), 500);
+      const m = (e && e.message) ? e.message : String(e);
+      /* 10001 = ที่เก็บข้อมูลของ Cloudflare สะดุดชั่วคราว ไม่ใช่ข้อมูลผู้ใช้ผิด — บอกให้กดใหม่ */
+      if (/10001|internal error/i.test(m)) {
+        console.error('upstream error', url.pathname, m);
+        return err('เซิร์ฟเวอร์ขัดข้องชั่วคราว — กรุณากดอีกครั้ง', 503);
+      }
+      return err('เกิดข้อผิดพลาดฝั่งเซิร์ฟเวอร์: ' + m, 500);
     }
   },
 };
@@ -375,6 +381,21 @@ async function deleteJob(env, request, id) {
 /* ============================================================
  *  PHOTOS (R2)
  * ============================================================ */
+
+/* R2 สะดุดเป็นครั้งคราว (put: internal error 10001) — ลองซ้ำก่อนค่อยยอมแพ้
+ * ใช้ key เดิมทุกครั้ง เขียนซ้ำจึงทับที่เดิม ไม่เกิดไฟล์ค้าง */
+async function r2Put(env, key, body, opts, tries = 3) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try { return await env.BUCKET.put(key, body, opts); }
+    catch (e) {
+      last = e;
+      if (i < tries - 1) await new Promise(r => setTimeout(r, 300 * (i + 1)));
+    }
+  }
+  throw last;
+}
+
 async function uploadPhoto(env, request) {
   const me = await getActor(env, request);
   if (!me) return err('ไม่ทราบตัวตนผู้ใช้ — กรุณาเข้าสู่ระบบใหม่', 401);
@@ -386,9 +407,14 @@ async function uploadPhoto(env, request) {
   const { be2, mm } = thaiParts();
   const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
   const key = 'jobs/' + be2 + mm + '/' + Date.now().toString(36) + '-' + crypto.randomUUID().slice(0, 8) + '.' + ext;
-  await env.BUCKET.put(key, buf, {
-    httpMetadata: { contentType: ct, cacheControl: 'public, max-age=31536000, immutable' },
-  });
+  try {
+    await r2Put(env, key, buf, {
+      httpMetadata: { contentType: ct, cacheControl: 'public, max-age=31536000, immutable' },
+    });
+  } catch (e) {
+    console.error('R2 put failed', key, e && e.message);
+    return err('ที่เก็บรูปขัดข้องชั่วคราว — กรุณากดบันทึกอีกครั้ง (รูปที่ขึ้นไปแล้วไม่ต้องถ่ายใหม่)', 503);
+  }
   return ok({ key });
 }
 
