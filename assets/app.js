@@ -9,6 +9,9 @@
 /* ------------------------------------------------------------------ */
 /* CONFIG                                                              */
 /* ------------------------------------------------------------------ */
+/* เลขเวอร์ชันที่ผู้ใช้เห็น (หน้าเข้าสู่ระบบ + ชีตตั้งค่า) — ใช้เช็คว่าเครื่องไหนได้โค้ดล่าสุดแล้ว
+   ออกเวอร์ชันใหม่: เปลี่ยนตรงนี้ + ?v= และป้าย V ใน index.html ให้เป็นเลขเดียวกัน
+   V1.1 — แก้เลือกรูปจากแกลเลอรีแล้วรูปไม่ขึ้น + แสดงเลขเวอร์ชัน */
 const APP_VERSION = '1.1';
 const DEFAULT_API = 'https://improvement-api.wiphawas-sketchup.workers.dev';
 const K_API  = 'tnc_imp_api';
@@ -156,7 +159,8 @@ function toast(msg) {
   t.innerHTML = TOAST_ICO + '<span></span>';
   t.querySelector('span').textContent = msg;      // ข้อความจากเซิร์ฟเวอร์ — ใส่แบบ text ไม่ใช่ HTML
   t.classList.add('on');
-  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 2800);
+  // ข้อความยาว (เช่นบอกสาเหตุที่ใส่รูปไม่ได้) ต้องค้างนานพอให้อ่านจบ
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), Math.min(7000, Math.max(2800, String(msg).length * 70)));
 }
 function notify(text, title) {
   const n = $('#notify');
@@ -172,28 +176,140 @@ function busy(btn, txtEl, msg) {
 }
 
 /* ---------- image helpers ---------- */
+/* ย่อรูปในเครื่องก่อนอัปโหลด → { url } เป็น data URL (JPEG) หรือ { err } บอกสาเหตุที่เปิดไม่ได้
+   ห้ามจบแบบเงียบ ๆ — อาการเดิมคือ "เลือกรูปจากแกลเลอรีแล้วรูปไม่ขึ้น" โดยไม่มีข้อความอะไรเลย
+   จุดที่ทำให้รูปหายเงียบ ๆ ได้บนมือถือ:
+   1) รูปกล้อง 12–50 MP ไฟล์ 5–20 MB — ของเดิมแปลงทั้งไฟล์เป็น base64 ก่อนถอดรหัส กินแรมหลายเท่า
+      เครื่องแรมน้อยถอดรหัสไม่ไหว จึงเปิดไฟล์ตรง ๆ ผ่าน object URL แทน
+   2) error ที่เกิดใน onload (สร้าง canvas ไม่ได้ตอนแรมตึง) ทำให้ promise ค้างตลอดไป → ใส่ try + timeout
+   3) canvas เก่าไม่คืนแรม (iOS จำกัดแรม canvas รวมทั้งหน้า) → ใช้เสร็จแล้วหดเป็น 0×0 ทันที
+   4) ไฟล์ HEIC (มือถือที่ตั้งกล้องเป็น "รูปภาพประสิทธิภาพสูง") Chrome เปิดไม่ได้ → แปลงด้วย heic2any */
+const COMPRESS_TIMEOUT = 45000;
+
 function compress(file, max = 1400, q = 0.72) {
-  return new Promise(res => {
-    const fr = new FileReader();
-    /* อ่านไฟล์ไม่สำเร็จ (ไฟล์เสีย / รูปแบบที่เครื่องเปิดไม่ได้) ต้องจบ promise ให้ได้
-       ไม่งั้นปุ่มจะค้างอยู่ที่ "กำลังอัปโหลด..." ตลอดไป */
-    fr.onerror = () => res(null);
-    fr.onabort = () => res(null);
-    fr.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        let { width: w, height: h } = img;
-        const sc = Math.min(1, max / Math.max(w, h));
-        w = Math.round(w * sc); h = Math.round(h * sc);
-        const c = document.createElement('canvas'); c.width = w; c.height = h;
-        c.getContext('2d').drawImage(img, 0, 0, w, h);
-        res(c.toDataURL('image/jpeg', q));
-      };
-      img.onerror = () => res(null);
-      img.src = fr.result;
-    };
-    fr.readAsDataURL(file);
+  return new Promise(resolve => {
+    let settled = false;
+    const done = r => { if (!settled) { settled = true; clearTimeout(timer); resolve(r); } };
+    const timer = setTimeout(() => done({ err: 'timeout' }), COMPRESS_TIMEOUT);
+    compressFile(file, max, q).then(done, () => done({ err: 'decode' }));
   });
+}
+
+async function compressFile(file, max, q) {
+  if (!file || !file.size) return { err: 'empty' };
+  let img = await loadImage(file);
+  if (!img && await isHeic(file)) {
+    const jpg = await heicToJpeg(file);
+    if (!jpg) return { err: 'heic' };
+    img = await loadImage(jpg);
+  }
+  if (!img) return { err: 'decode' };
+  return drawScaled(img.el, img.w, img.h, max, q);
+}
+
+/* เปิดรูปจาก Blob → { el, w, h } หรือ null
+   ใช้ object URL ก่อน (ไม่ต้องก๊อปทั้งไฟล์เป็นข้อความ) ถ้าไม่ได้ค่อยถอยไปอ่านเป็น data URL แบบเดิม */
+async function loadImage(blob) {
+  let url = '';
+  try { url = URL.createObjectURL(blob); } catch (e) { /* WebView บางตัวไม่มี */ }
+  if (url) {
+    const r = await imgFromSrc(url);
+    URL.revokeObjectURL(url);
+    if (r) return r;
+  }
+  const data = await new Promise(res => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = fr.onabort = () => res('');
+    try { fr.readAsDataURL(blob); } catch (e) { res(''); }
+  });
+  return data ? imgFromSrc(data) : null;
+}
+
+function imgFromSrc(src) {
+  return new Promise(res => {
+    const img = new Image();
+    /* ห้ามรอ img.decode() — Chrome ค้าง promise นั้นไว้ตลอดตอนหน้าเว็บอยู่เบื้องหลัง
+       (เช่นจังหวะเพิ่งกลับมาจากหน้าเลือกรูป) drawImage ถอดรหัสให้เองอยู่แล้ว */
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      res(w && h ? { el: img, w, h } : null);
+    };
+    img.onerror = () => res(null);
+    img.src = src;
+  });
+}
+
+function drawScaled(el, w0, h0, max, q) {
+  const sc = Math.min(1, max / Math.max(w0, h0));
+  const w = Math.max(1, Math.round(w0 * sc)), h = Math.max(1, Math.round(h0 * sc));
+  const c = document.createElement('canvas');
+  try {
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    if (!ctx) return { err: 'memory' };
+    ctx.fillStyle = '#fff';               // PNG ที่มีส่วนโปร่งใส → JPEG จะกลายเป็นพื้นดำ ถ้าไม่ปูขาวก่อน
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(el, 0, 0, w, h);
+    const url = c.toDataURL('image/jpeg', q);
+    /* canvas ที่สร้างไม่สำเร็จจะคืน "data:," — ถือว่าเปิดไม่ได้ ไม่ใส่รูปเปล่าลงในฟอร์ม */
+    return /^data:image\/[a-z]+;base64,./.test(url) ? { url } : { err: 'memory' };
+  } catch (e) {
+    return { err: 'memory' };
+  } finally {
+    c.width = c.height = 0;               // คืนแรมทันที ไม่รอ GC
+  }
+}
+
+/* HEIC/HEIF = กล่อง ISO-BMFF ที่ขึ้นต้นด้วย ftyp + แบรนด์ heic/heix/hevc/mif1/msf1 ฯลฯ
+   ดูจากเนื้อไฟล์ด้วย เพราะบางแอปแกลเลอรีส่งมาโดยไม่มีนามสกุลหรือ MIME */
+async function isHeic(file) {
+  if (/image\/hei[cf]/i.test(file.type || '') || /\.hei[cf]$/i.test(file.name || '')) return true;
+  try {
+    const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    const s = String.fromCharCode.apply(null, b);
+    return s.slice(4, 8) === 'ftyp' && /^(hei[cmsx]|hev[cmsx]|mif1|msf1)$/.test(s.slice(8, 12));
+  } catch (e) { return false; }
+}
+
+/* โหลดตัวแปลง HEIC เฉพาะตอนเจอไฟล์ HEIC จริง ๆ (ไฟล์ ~1.3 MB ไม่ควรโหลดทุกครั้งที่เปิดแอป) */
+const HEIC_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js';   // CDN เดียวกับ ExcelJS
+let heicLib = null;
+function loadHeicLib() {
+  if (window.heic2any) return Promise.resolve(window.heic2any);
+  if (!heicLib) {
+    heicLib = new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = HEIC_LIB; s.async = true;
+      s.onload = () => window.heic2any ? res(window.heic2any) : rej(new Error('heic2any'));
+      s.onerror = () => rej(new Error('heic2any'));
+      document.head.appendChild(s);
+    }).catch(e => { heicLib = null; throw e; });   // เน็ตหลุดตอนโหลด → ครั้งหน้าลองใหม่ได้
+  }
+  return heicLib;
+}
+async function heicToJpeg(file) {
+  try {
+    const conv = await loadHeicLib();
+    const out = await conv({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+    return Array.isArray(out) ? out[0] : out;   // HEIC ที่มีหลายภาพ (burst/live) → ใช้ภาพแรก
+  } catch (e) { return null; }
+}
+
+/* ข้อความบอกผู้ใช้ว่าทำไมรูปนี้ใส่ไม่ได้ — ต่อท้ายชื่อไฟล์และขนาด ไว้ใช้ไล่ปัญหาต่อ */
+const PHOTO_ERR = {
+  empty:   'ไฟล์ว่างเปล่า หรือยังดาวน์โหลดจากคลาวด์ไม่เสร็จ',
+  heic:    'ไฟล์ HEIC แปลงไม่สำเร็จ — ลองต่อเน็ตแล้วเลือกใหม่ หรือตั้งกล้องให้บันทึกเป็น JPEG',
+  decode:  'เครื่องเปิดไฟล์รูปนี้ไม่ได้ (ไฟล์เสียหรือไม่ใช่รูปภาพ)',
+  memory:  'รูปใหญ่เกินกว่าที่เครื่องจะย่อได้ — ปิดแอปอื่นแล้วลองใหม่',
+  timeout: 'ใช้เวลาเตรียมรูปนานเกินไป — ลองใหม่อีกครั้ง'
+};
+function photoErrMsg(file, err) {
+  const sz = !(file && file.size) ? ''
+    : file.size < 1048576 ? ' · ' + Math.ceil(file.size / 1024) + ' KB' : ' · ' + (file.size / 1048576).toFixed(1) + ' MB';
+  const name = (file && file.name) || 'รูป';
+  return `ใส่รูป ${name} ไม่ได้: ${PHOTO_ERR[err] || PHOTO_ERR.decode}${sz}`;
 }
 function dataURLtoBlob(d) {
   const [head, b64] = String(d).split(',');
@@ -385,8 +501,10 @@ function renderShots() {
   const shots = draft.photos.map((p, i) =>
     `<div class="shot" style="animation-delay:${i * 40}ms"><img src="${p}" alt="รูป Before ที่ ${i + 1}">
        <button type="button" class="x" data-rm="${i}" aria-label="ลบรูปที่ ${i + 1}">✕</button></div>`);
+  for (let i = 0; i < preparing && shots.length < 4; i++)
+    shots.push(`<div class="slot loading" role="status" aria-label="กำลังเตรียมรูป"><i class="spin"></i></div>`);
   // ช่องว่างที่เหลือ — บอกโควตา 4 รูปตั้งแต่ยังไม่ได้ถ่าย
-  for (let i = draft.photos.length; i < 4; i++) shots.push(`<div class="slot" aria-hidden="true">${i + 1}</div>`);
+  for (let i = shots.length; i < 4; i++) shots.push(`<div class="slot" aria-hidden="true">${i + 1}</div>`);
   $('#shots').innerHTML = shots.join('');
 }
 
@@ -431,22 +549,47 @@ function setFieldValid(name, valid) {
   if (input) input.setAttribute('aria-invalid', valid ? 'false' : 'true');
 }
 
-async function addPhotos(files) {
-  const list = Array.from(files).slice(0, 4 - draft.photos.length);
-  if (!list.length) { toast('เพิ่มรูปได้สูงสุด 4 รูป'); return; }
-  for (const f of list) {
-    const d = await compress(f);
-    if (d) draft.photos.push(d);
+/* เลือกรูปติด ๆ กันหลายรอบ → ทำทีละชุดตามลำดับ โควตา 4 รูปจะได้ไม่นับพลาดตอนชุดก่อนยังย่อไม่เสร็จ */
+let photoQueue = Promise.resolve();
+let preparing = 0;                    // รูปที่กำลังย่ออยู่ — วาดเป็นช่องหมุนรอ ให้เห็นว่าระบบรับรูปแล้ว
+function addPhotos(files) {
+  photoQueue = photoQueue.then(() => addPhotosNow(files)).catch(() => {});
+  return photoQueue;
+}
+async function addPhotosNow(files) {
+  const all = Array.from(files || []);
+  if (!all.length) return;                              // กดยกเลิกจากหน้าเลือกรูป
+  const room = 4 - draft.photos.length;
+  if (room <= 0) { toast('เพิ่มรูปได้สูงสุด 4 รูป'); return; }
+  const list = all.slice(0, room);
+  const btns = $$('[data-field="photos"] .shot-btn');
+  btns.forEach(b => b.classList.add('busy'));
+  let failMsg = '';
+  /* วาดช่องหมุนรอครั้งเดียวตอนเริ่ม แล้ววาดใหม่ครั้งเดียวตอนจบ
+     ถ้าวาดใหม่ทุกรูป รูปเดิมในแถวจะกะพริบหายระหว่างเครื่องกำลังย่อรูปถัดไป */
+  preparing = list.length; renderShots();
+  try {
+    for (let i = 0; i < list.length; i++) {
+      const d = await compress(list[i]);
+      if (d.url) draft.photos.push(d.url);
+      else failMsg = photoErrMsg(list[i], d.err);
+    }
+  } finally {
+    preparing = 0;
+    btns.forEach(b => b.classList.remove('busy'));
+    renderShots();
   }
-  renderShots();
-  setFieldValid('photos', true);
+  if (draft.photos.length) setFieldValid('photos', true);
   saveDraft();
+  if (failMsg) toast(failMsg);
+  else if (all.length > room) toast(`เพิ่มรูปได้สูงสุด 4 รูป — ใช้ ${room} รูปแรก`);
 }
 
 let submitting = false;
 async function submitJob(e) {
   e.preventDefault();
   if (submitting) return;
+  if (preparing) { toast('รอเตรียมรูปให้เสร็จก่อน แล้วค่อยกดบันทึก'); return; }
   let ok = true;
   const need = [
     ['photos', draft.photos.length > 0],
@@ -856,18 +999,21 @@ async function addAfterPhotos(files) {
 
   try {
     const keys = [];
+    let failMsg = '';
     for (let i = 0; i < pick.length; i++) {
       if (txt) txt.textContent = `กำลังอัปโหลด ${i + 1}/${pick.length}...`;
       const d = await compress(pick[i]);
-      if (d) keys.push(await uploadPhoto(d));
+      if (d.url) keys.push(await uploadPhoto(d.url));
+      else failMsg = photoErrMsg(pick[i], d.err);
     }
-    if (!keys.length) throw new Error('อ่านไฟล์รูปไม่ได้ — ลองถ่ายใหม่ หรือเลือกรูปจากแกลเลอรีแทน');
+    if (!keys.length) throw new Error(failMsg || PHOTO_ERR.decode);
     await api('/jobs/' + j.id + '/photos', { method: 'POST', body: { kind: 'after', keys } });
     const r = await api('/jobs/' + j.id);
     currentJob = normJob(r.job);
     replaceJob(currentJob);
     renderDetail(); renderGallery();
-    toast('เพิ่มรูป After แล้ว ' + keys.length + ' รูป');
+    toast(failMsg ? `เพิ่มรูป After ได้ ${keys.length} จาก ${pick.length} รูป — ${failMsg}`
+                  : 'เพิ่มรูป After แล้ว ' + keys.length + ' รูป');
     if (pendingClose) { pendingClose = false; await act('close'); }
   } catch (e) {
     pendingClose = false;
@@ -1500,7 +1646,7 @@ function detectLogo() {
 
 async function init() {
   detectLogo();
-  $('#lock-ver').textContent = 'v' + APP_VERSION;
+  $$('[data-app-ver]').forEach(el => el.textContent = 'V' + APP_VERSION);
   fillSelects();
   bind();
   renderShots();      // วางช่องรูปว่างไว้ก่อน จะได้เห็นว่าถ่ายได้ 4 รูป

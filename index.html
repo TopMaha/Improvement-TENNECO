@@ -8,8 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<!-- ?v= ท้ายไฟล์ = กันเบราว์เซอร์/GitHub Pages เสิร์ฟไฟล์เก่าค้างหลังอัปเวอร์ชันใหม่ -->
-<link rel="stylesheet" href="assets/app.css?v=1.2">
+<!-- ?v= ท้ายไฟล์ = กันเบราว์เซอร์/GitHub Pages เสิร์ฟไฟล์เก่าค้างหลังอัปเวอร์ชันใหม่
+     ออกเวอร์ชันใหม่: เปลี่ยน ?v= ทั้ง 3 ไฟล์ในหน้านี้ + ป้าย V ในหน้านี้ ให้ตรงกับ APP_VERSION ใน assets/app.js -->
+<link rel="stylesheet" href="assets/app.css?v=1.1">
 </head>
 <body>
 
@@ -33,7 +34,7 @@
       </button>
     </form>
     <p class="lock-foot">รหัสพนักงานอ้างอิงจากฐานข้อมูล PSIF<br>เข้าไม่ได้ / ไม่พบรหัส — ติดต่อผู้ดูแลระบบ</p>
-    <p class="lock-foot mono" id="lock-ver">v1.0</p>
+    <p class="lock-foot mono" data-app-ver>V1.1</p>
   </div>
 </div>
 
@@ -349,6 +350,7 @@
       <button class="btn danger-ghost" id="s-logout" style="width:100%">ออกจากระบบ</button>
       <p class="hint">ข้อมูลทั้งหมดเก็บบนฐานข้อมูลกลาง (Cloudflare D1 + R2) — ทุกคนเห็นข้อมูลชุดเดียวกันตามสิทธิ์ของตัวเอง</p>
     </div>
+    <p class="app-ver">TENNECO Improvement <b data-app-ver>V1.1</b></p>
   </div>
   <footer class="sheet-foot"><button class="btn solid" data-close>เสร็จสิ้น</button></footer>
 </section>
@@ -450,7 +452,7 @@
 
 <canvas id="scratch" hidden></canvas>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-<script src="assets/app.js?v=1.2"></script>
-<script src="assets/export.js?v=1.2"></script>
+<script src="assets/app.js?v=1.1"></script>
+<script src="assets/export.js?v=1.1"></script>
 </body>
 </html>
